@@ -1,8 +1,8 @@
 {
-    "name": "base",
+    "name": "join-backend",
     "version": "1.0.0",
-    "description": "",
-    "main": "index.js",
+    "description": "Provider-driven Governify project onboarding service",
+    "main": "dist/server.js",
     "type": "module",
     "scripts": {
         "dev": "nodemon",
@@ -25,15 +25,15 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/governify-next/base.git"
+        "url": "git+https://github.com/governify-next/join-backend.git"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "bugs": {
-        "url": "https://github.com/governify-next/base/issues"
+        "url": "https://github.com/governify-next/join-backend/issues"
     },
-    "homepage": "https://github.com/governify-next/base#readme",
+    "homepage": "https://github.com/governify-next/join-backend#readme",
     "dependencies": {
         "dotenv": "^17.2.3",
         "express": "^5.2.1",
