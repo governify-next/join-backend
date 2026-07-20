@@ -5,6 +5,9 @@ import { bootEnv } from '../config/bootConfig.js';
 import { sendSuccess } from '../utils/standardResponse.js';
 import { ValidationError } from '../utils/customErrors.js';
 import { installationIsJoined } from '../repositories/onboarding.repository.js';
+import { getLogger } from '../utils/logger.js';
+
+const logger = getLogger().setTag('onboarding.controller.ts');
 
 const handle = (fn: () => Promise<unknown>, res: Response, next: NextFunction, status = 200) =>
     fn()
@@ -52,7 +55,11 @@ export const githubCallback = async (req: Request, res: Response) => {
             303,
             `${bootEnv.FRONTEND_URL}/github?onboarding=${onboarding._id.toString()}&github=connected`,
         );
-    } catch {
+    } catch (error) {
+        logger.error(
+            'GitHub authorization callback failed',
+            error instanceof Error ? error.message : 'Unknown error',
+        );
         res.redirect(
             303,
             `${bootEnv.FRONTEND_URL}/github?github=error&message=${encodeURIComponent('GitHub authorization could not be completed. Please try again.')}`,
