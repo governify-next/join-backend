@@ -5,6 +5,20 @@ import { UnauthorizedError, ValidationError } from '../utils/customErrors.js';
 import { requestJson } from '../utils/http.js';
 import type { GitHubProject, GitHubRepository } from './provider.types.js';
 
+const transientStatuses = new Set([429, 502, 503, 504]);
+
+const requestGitHub = async <T>(url: string, init: Parameters<typeof fetch>[1] = {}) => {
+    for (let attempt = 0; ; attempt += 1) {
+        try {
+            return await requestJson<T>(url, init);
+        } catch (error) {
+            const status = (error as { details?: { status?: number } }).details?.status;
+            if (attempt >= 2 || !status || !transientStatuses.has(status)) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** attempt));
+        }
+    }
+};
+
 const apiHeaders = (token: string) => ({
     Accept: 'application/vnd.github+json',
     Authorization: `Bearer ${token}`,
@@ -56,13 +70,13 @@ export const verifyState = (state: string) => {
 };
 
 export const createInstallationToken = async (installationId: number) =>
-    requestJson<{ token: string; expires_at: string }>(
+    requestGitHub<{ token: string; expires_at: string }>(
         `${bootEnv.GITHUB_API_URL}/app/installations/${installationId}/access_tokens`,
         { method: 'POST', headers: apiHeaders(appJwt()), body: '{}' },
     );
 
 const exchangeUserCode = (code: string) =>
-    requestJson<{ access_token: string }>('https://github.com/login/oauth/access_token', {
+    requestGitHub<{ access_token: string }>('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -76,13 +90,13 @@ const exchangeUserCode = (code: string) =>
 export const verifyInstallationForUser = async (installationId: number, code?: string) => {
     if (!code) throw new UnauthorizedError('GitHub user authorization was not completed');
     const userToken = await exchangeUserCode(code);
-    const installations = await requestJson<{ installations: { id: number }[] }>(
+    const installations = await requestGitHub<{ installations: { id: number }[] }>(
         `${bootEnv.GITHUB_API_URL}/user/installations`,
         { headers: apiHeaders(userToken.access_token) },
     );
     if (!installations.installations.some((installation) => installation.id === installationId))
         throw new UnauthorizedError('GitHub installation is not associated with this user');
-    return requestJson<{ id: number; account: { login: string; type: string } }>(
+    return requestGitHub<{ id: number; account: { login: string; type: string } }>(
         `${bootEnv.GITHUB_API_URL}/app/installations/${installationId}`,
         { headers: apiHeaders(appJwt()) },
     );
@@ -98,7 +112,7 @@ export const listRepositories = async (installationId: number): Promise<GitHubRe
         owner: { login: string };
     }[] = [];
     for (let page = 1; ; page += 1) {
-        const result = await requestJson<{ repositories: typeof repositories }>(
+        const result = await requestGitHub<{ repositories: typeof repositories }>(
             `${bootEnv.GITHUB_API_URL}/installation/repositories?per_page=100&page=${page}`,
             { headers: apiHeaders(token) },
         );
@@ -131,7 +145,7 @@ export const listProjects = async (
     const nodes: Record<string, unknown>[] = [];
     let after: string | null = null;
     for (;;) {
-        const result: ProjectsResult = await requestJson<ProjectsResult>(
+        const result: ProjectsResult = await requestGitHub<ProjectsResult>(
             `${bootEnv.GITHUB_API_URL}/graphql`,
             {
                 method: 'POST',
@@ -171,7 +185,7 @@ export const listCollaborators = async (installationId: number, owner: string, r
     const { token } = await createInstallationToken(installationId);
     const users: { login: string; avatar_url: string }[] = [];
     for (let page = 1; ; page += 1) {
-        const pageUsers = await requestJson<typeof users>(
+        const pageUsers = await requestGitHub<typeof users>(
             `${bootEnv.GITHUB_API_URL}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/collaborators?per_page=100&page=${page}`,
             { headers: apiHeaders(token) },
         );
