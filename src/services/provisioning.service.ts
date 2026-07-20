@@ -9,6 +9,7 @@ import { DuplicateKeyError, ForbiddenError } from '../utils/customErrors.js';
 import { serviceHeaders } from '../utils/serviceAuthentication.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import { buildSignatures } from './signature.service.js';
+import { organizationsForUser } from './scopeManager.service.js';
 
 const logger = getLogger().setTag('provisioning.service.ts');
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -45,10 +46,7 @@ const provision = async (onboarding: IOnboarding) => {
 
     if (!onboarding.checkpoints.includes('validated')) {
         const [organizations, repositories, projects, currentTemplate] = await Promise.all([
-            requestJson<Record<string, unknown>[]>(
-                `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/users/${encodeURIComponent(onboarding.username)}/organizations`,
-                { headers: serviceHeaders() },
-            ),
+            organizationsForUser(onboarding.username, onboarding.userId, serviceHeaders()),
             github.listRepositories(installationId),
             github.listProjects(installationId, config.repository.owner),
             agreementTemplates.getPublic(template._id),

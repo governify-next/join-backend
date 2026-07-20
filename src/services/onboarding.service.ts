@@ -9,10 +9,9 @@ import {
     ValidationError,
 } from '../utils/customErrors.js';
 import * as github from '../providers/github.provider.js';
-import { bootEnv } from '../config/bootConfig.js';
-import { requestJson } from '../utils/http.js';
 import mongoose from 'mongoose';
 import * as agreementTemplates from './agreementTemplate.service.js';
+import { organizationsForUser } from './scopeManager.service.js';
 
 export const getAgreementTemplates = () => agreementTemplates.listPublic();
 
@@ -98,10 +97,9 @@ export const collaborators = async (id: string, userId: string, owner: string, r
 
 export const organizations = async (id: string, user: AuthenticatedUser, accessToken: string) => {
     await getOwned(id, user.id);
-    return requestJson<Record<string, unknown>[]>(
-        `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/users/${encodeURIComponent(user.username)}/organizations`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
+    return organizationsForUser(user.username, user.id, {
+        Authorization: `Bearer ${accessToken}`,
+    });
 };
 
 const validateConfiguration = (config: OnboardingConfiguration) => {
