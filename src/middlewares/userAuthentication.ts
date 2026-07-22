@@ -31,30 +31,3 @@ export const requireUser = async (req: Request, _res: Response, next: NextFuncti
         next(new UnauthorizedError('Invalid or expired Governify session'));
     }
 };
-
-export const requireService = (req: Request, _res: Response, next: NextFunction) => {
-    const authorization = req.header('authorization');
-    if (!authorization?.startsWith('Bearer ')) return next(new UnauthorizedError());
-    const token = authorization.slice('Bearer '.length);
-    try {
-        const [header, encoded, signature] = token.split('.');
-        const unsigned = `${header}.${encoded}`;
-        const expected = Buffer.from(requireHmac(unsigned, bootEnv.JWT_SECRET), 'base64url');
-        const actual = Buffer.from(signature || '', 'base64url');
-        if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
-            throw new Error();
-        const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as {
-            type?: string;
-            exp?: number;
-        };
-        if (payload.type !== 'service-token' || (payload.exp || 0) < Date.now() / 1000)
-            throw new Error();
-        next();
-    } catch {
-        next(new UnauthorizedError('Invalid service token'));
-    }
-};
-
-import { createHmac, timingSafeEqual } from 'node:crypto';
-const requireHmac = (value: string, secret: string) =>
-    createHmac('sha256', secret).update(value).digest('base64url');

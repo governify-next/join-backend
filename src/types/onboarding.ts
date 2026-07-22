@@ -1,4 +1,5 @@
-export type ProviderKey = 'github';
+export type IntegrationProvider = 'github' | 'zenhub';
+export type ModuleId = IntegrationProvider | 'agreement' | 'scope';
 
 export type OnboardingStatus =
     | 'DRAFT'
@@ -38,56 +39,175 @@ export interface PublicAgreementTemplate {
 
 export interface GuaranteeTemplate {
     name: string;
+    info: {
+        title: string;
+        description: string;
+        example: string;
+    };
+    numericExpression: string;
+    comparator: null;
+    threshold: null;
+    window: null;
     metrics: {
         metricName: string;
-        event?: { fetcherConfigs?: { fetcherId: string }[] };
-        metricConfig?: { event?: { fetcherConfigs?: { fetcherId: string }[] } };
+        metricConfig: {
+            event: {
+                eventId: string;
+                fetcherConfigs: { fetcherId: string; fetcherConfig: null }[];
+                processConfig: null;
+            };
+            aggregation: {
+                aggregatorType: string;
+                aggregatorConfig: Record<string, unknown>;
+            };
+        };
     }[];
 }
 
-export interface RepositorySelection {
-    id: number;
-    owner: string;
-    name: string;
-    fullName: string;
-    private: boolean;
+export interface OnboardingModule {
+    id: ModuleId;
+    label: string;
+    kind: 'core' | 'external' | 'destination';
+    adapter: string;
+    authorization: 'none' | 'github-app' | 'mock' | 'governify-session';
 }
 
-export interface ProjectSelection {
+export interface RequirementConsumer {
+    agreement?: boolean;
+    guarantee?: string;
+    metric?: string;
+}
+
+export type RequirementOperation =
+    | 'scope.organizations'
+    | 'github.repositories'
+    | 'github.projects'
+    | 'github.projectFields'
+    | 'github.fieldOptions'
+    | 'github.collaborators'
+    | 'github.issues'
+    | 'zenhub.workspaces'
+    | 'zenhub.pipelines'
+    | 'zenhub.donePipelines'
+    | 'zenhub.users'
+    | 'static.options';
+
+export interface RequirementDefinition {
     id: string;
-    number: number;
-    title: string;
-    owner: string;
-    statusFieldId: string;
-    statusFieldName: string;
+    module: ModuleId;
+    type: 'text' | 'datetime' | 'timezone' | 'resource';
+    cardinality?: 'one' | 'many';
+    required: boolean;
+    requiredBy: RequirementConsumer[];
+    dependsOn?: string[];
+    source?: {
+        operation: RequirementOperation;
+        arguments?: Record<string, AnswerReference>;
+        options?: ResourceOption[];
+    };
+    default?: 'now' | 'oneYearFromNow' | 'browserTimezone';
+    validation?: {
+        minLength?: number;
+        maxLength?: number;
+        pattern?: string;
+        minItems?: number;
+    };
+    ui: {
+        order: number;
+        step: string;
+        stepTitle: string;
+        stepDescription: string;
+        label: string;
+        help?: string;
+        searchable?: boolean;
+    };
 }
 
-export interface StatusMapping {
-    inProgress: string[];
-    inReview: string[];
-    done: string[];
+export interface AnswerReference {
+    answer: string;
+    path?: string;
+    transform?: 'identity' | 'pluckName' | 'pluckNumber' | 'pluckUsername' | 'toIso';
+    timezoneAnswer?: string;
 }
 
-export interface OnboardingConfiguration {
-    repository: RepositorySelection;
-    project: ProjectSelection;
-    organizationName: string;
-    elementName: string;
-    trackedUsers: string[];
-    statusMapping: StatusMapping;
-    validity: { initial: string; end: string; timezone: string };
+export interface LiteralReference {
+    literal: unknown;
 }
 
-export interface FetcherConfigInput {
-    fetcherId: string;
-    fetcherConfig: Record<string, unknown>;
+export interface IntegrationReference {
+    integration: IntegrationProvider;
+    format?: 'reference' | 'uri';
 }
+
+export interface RepeatItemReference {
+    repeatItem: string;
+}
+
+export type ValueBinding =
+    | AnswerReference
+    | LiteralReference
+    | IntegrationReference
+    | RepeatItemReference;
+
+export interface MetricMapping {
+    metricName: string;
+    fetcherConfigs: {
+        fetcherId: string;
+        fields: Record<string, ValueBinding>;
+    }[];
+    processConfig: Record<string, ValueBinding>;
+}
+
+export interface SignatureMapping {
+    guaranteeTemplateName: string;
+    subject: { kind: 'project' } | { kind: 'member'; answer: string; itemPath: string };
+    metrics: MetricMapping[];
+}
+
+export interface OnboardingDefinition {
+    schemaVersion: '1.0';
+    id: string;
+    agreementTemplateId: string;
+    modules: OnboardingModule[];
+    requirements: RequirementDefinition[];
+    mappings: {
+        contract: Record<string, ValueBinding>;
+        signatures: SignatureMapping[];
+        scope: Record<string, ValueBinding>;
+    };
+}
+
+export interface JoinTemplateOption {
+    agreementTemplate: PublicAgreementTemplate;
+    onboardingDefinition: OnboardingDefinition;
+}
+
+export interface ResourceOption {
+    id: string;
+    label: string;
+    description?: string;
+    value: unknown;
+}
+
+export type OnboardingAnswers = Record<string, unknown>;
 
 export interface SignatureInput {
     guaranteeName: string;
     metrics: {
         metricName: string;
-        fetcherConfigs: FetcherConfigInput[];
+        fetcherConfigs: {
+            fetcherId: string;
+            fetcherConfig: Record<string, unknown>;
+        }[];
         processConfig: Record<string, unknown>;
     }[];
+}
+
+export interface MaterializedOnboarding {
+    agreement: {
+        agreementTemplate: PublicAgreementTemplate;
+        contract: Record<string, unknown>;
+        signatures: SignatureInput[];
+    };
+    scope: Record<string, unknown>;
 }

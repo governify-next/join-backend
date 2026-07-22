@@ -1,24 +1,33 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import type {
-    OnboardingConfiguration,
+    OnboardingAnswers,
+    OnboardingDefinition,
     OnboardingStatus,
-    ProviderKey,
+    IntegrationProvider,
     PublicAgreementTemplate,
 } from '../types/onboarding.js';
 
 export interface IOnboarding extends Document {
     userId: string;
     username: string;
-    provider: ProviderKey;
+    requiredIntegrations: IntegrationProvider[];
     agreementTemplate: PublicAgreementTemplate;
+    onboardingDefinition: OnboardingDefinition;
     status: OnboardingStatus;
-    integration?: {
-        installationId?: number;
-        accountLogin?: string;
-        accountType?: string;
-        stateNonce?: string;
+    integrations?: {
+        github?: {
+            installationId?: number;
+            accountLogin?: string;
+            accountType?: string;
+            stateNonce?: string;
+        };
+        zenhub?: {
+            connectionId?: string;
+            accountName?: string;
+            mocked?: boolean;
+        };
     };
-    configuration?: OnboardingConfiguration;
+    answers?: OnboardingAnswers;
     checkpoints: string[];
     result?: Record<string, unknown>;
     failure?: { step: string; message: string; retryable: boolean; occurredAt: Date };
@@ -33,11 +42,12 @@ const onboardingSchema = new Schema<IOnboarding>(
     {
         userId: { type: String, required: true, index: true },
         username: { type: String, required: true },
-        provider: { type: String, enum: ['github'], required: true },
+        requiredIntegrations: { type: [String], enum: ['github', 'zenhub'], default: [] },
         agreementTemplate: { type: Schema.Types.Mixed, required: true },
+        onboardingDefinition: { type: Schema.Types.Mixed, required: true },
         status: { type: String, required: true, index: true },
-        integration: { type: Schema.Types.Mixed },
-        configuration: { type: Schema.Types.Mixed },
+        integrations: { type: Schema.Types.Mixed, default: {} },
+        answers: { type: Schema.Types.Mixed, default: {} },
         checkpoints: { type: [String], default: [] },
         result: { type: Schema.Types.Mixed },
         failure: { type: Schema.Types.Mixed },

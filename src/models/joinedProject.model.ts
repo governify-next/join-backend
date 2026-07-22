@@ -1,22 +1,22 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IJoinedProject extends Document {
-    provider: 'github';
+    provider: 'github' | 'zenhub' | 'join';
     providerResourceId: string;
     organizationName: string;
     elementName: string;
     onboardingId: mongoose.Types.ObjectId;
-    installationId: number;
+    installationId?: number;
 }
 
 const joinedProjectSchema = new Schema<IJoinedProject>(
     {
-        provider: { type: String, enum: ['github'], required: true },
+        provider: { type: String, enum: ['github', 'zenhub', 'join'], required: true },
         providerResourceId: { type: String, required: true },
         organizationName: { type: String, required: true },
         elementName: { type: String, required: true },
         onboardingId: { type: Schema.Types.ObjectId, required: true, ref: 'JoinOnboarding' },
-        installationId: { type: Number, required: true },
+        installationId: { type: Number },
     },
     { timestamps: true },
 );

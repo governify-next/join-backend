@@ -11,13 +11,24 @@ export const requestJson = async <T>(
         throw new ExternalServiceError(`Unable to reach ${new URL(url).host}`, error);
     }
     const body = (await response.json().catch(() => null)) as
-        | { data?: T; message?: string; error?: { message?: string } }
+        | {
+              data?: T;
+              message?: string;
+              error?: { message?: string; details?: { message?: string } };
+          }
         | T
         | null;
     if (!response.ok) {
-        const wrapped = body as { message?: string; error?: { message?: string } } | null;
+        const wrapped = body as {
+            message?: string;
+            error?: { message?: string; details?: { message?: string } };
+        } | null;
+        const message = wrapped?.error?.message || wrapped?.message;
+        const detail = wrapped?.error?.details?.message;
         throw new ExternalServiceError(
-            wrapped?.error?.message || wrapped?.message || `Request failed with ${response.status}`,
+            [message || `Request failed with ${response.status}`, detail]
+                .filter((part, index, parts) => part && parts.indexOf(part) === index)
+                .join(': '),
             { status: response.status },
         );
     }

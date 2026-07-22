@@ -1,11 +1,10 @@
 import type { NextFunction, Request, Response } from 'express';
 import * as onboardingService from '../services/onboarding.service.js';
-import * as github from '../providers/github.provider.js';
 import { bootEnv } from '../config/bootConfig.js';
 import { sendSuccess } from '../utils/standardResponse.js';
 import { ValidationError } from '../utils/customErrors.js';
-import { installationIsJoined } from '../repositories/onboarding.repository.js';
 import { getLogger } from '../utils/logger.js';
+import type { IntegrationProvider, OnboardingAnswers } from '../types/onboarding.js';
 
 const logger = getLogger().setTag('onboarding.controller.ts');
 
@@ -19,12 +18,7 @@ export const agreementTemplates = (_req: Request, res: Response, next: NextFunct
 
 export const create = (req: Request, res: Response, next: NextFunction) =>
     handle(
-        () =>
-            onboardingService.create(
-                req.userAuth!,
-                req.body.provider,
-                req.body.agreementTemplateId,
-            ),
+        () => onboardingService.create(req.userAuth!, req.body.agreementTemplateId),
         res,
         next,
         201,
@@ -33,9 +27,14 @@ export const create = (req: Request, res: Response, next: NextFunction) =>
 export const get = (req: Request, res: Response, next: NextFunction) =>
     handle(() => onboardingService.getOwned(req.params.id, req.userAuth!.id), res, next);
 
-export const authorizeGitHub = (req: Request, res: Response, next: NextFunction) =>
+export const connectIntegration = (req: Request, res: Response, next: NextFunction) =>
     handle(
-        () => onboardingService.startGitHubAuthorization(req.params.id, req.userAuth!.id),
+        () =>
+            onboardingService.connectIntegration(
+                req.params.id,
+                req.userAuth!.id,
+                req.params.provider as IntegrationProvider,
+            ),
         res,
         next,
     );
@@ -53,7 +52,7 @@ export const githubCallback = async (req: Request, res: Response) => {
         });
         res.redirect(
             303,
-            `${bootEnv.FRONTEND_URL}/github?onboarding=${onboarding._id.toString()}&github=connected`,
+            `${bootEnv.FRONTEND_URL}/?onboarding=${onboarding._id.toString()}&integration=github&status=connected`,
         );
     } catch (error) {
         logger.error(
@@ -62,49 +61,46 @@ export const githubCallback = async (req: Request, res: Response) => {
         );
         res.redirect(
             303,
-            `${bootEnv.FRONTEND_URL}/github?github=error&message=${encodeURIComponent('GitHub authorization could not be completed. Please try again.')}`,
+            `${bootEnv.FRONTEND_URL}/?integration=github&status=error&message=${encodeURIComponent('GitHub authorization could not be completed. Please try again.')}`,
         );
     }
 };
 
-export const repositories = (req: Request, res: Response, next: NextFunction) =>
-    handle(() => onboardingService.repositories(req.params.id, req.userAuth!.id), res, next);
-
-export const projects = (req: Request, res: Response, next: NextFunction) =>
+export const requirementOptions = (req: Request, res: Response, next: NextFunction) =>
     handle(
         () =>
-            onboardingService.projects(
+            onboardingService.requirementOptions(
                 req.params.id,
-                req.userAuth!.id,
-                req.query.owner?.toString() || '',
+                req.userAuth!,
+                req.accessToken!,
+                req.params.requirementId,
+                (req.body.answers || {}) as OnboardingAnswers,
             ),
-        res,
-        next,
-    );
-
-export const collaborators = (req: Request, res: Response, next: NextFunction) =>
-    handle(
-        () =>
-            onboardingService.collaborators(
-                req.params.id,
-                req.userAuth!.id,
-                req.query.owner?.toString() || '',
-                req.query.repo?.toString() || '',
-            ),
-        res,
-        next,
-    );
-
-export const organizations = (req: Request, res: Response, next: NextFunction) =>
-    handle(
-        () => onboardingService.organizations(req.params.id, req.userAuth!, req.accessToken!),
         res,
         next,
     );
 
 export const configure = (req: Request, res: Response, next: NextFunction) =>
     handle(
-        () => onboardingService.configure(req.params.id, req.userAuth!, req.accessToken!, req.body),
+        () =>
+            onboardingService.configure(
+                req.params.id,
+                req.userAuth!,
+                req.accessToken!,
+                req.body.answers as OnboardingAnswers,
+            ),
+        res,
+        next,
+    );
+
+export const saveAnswers = (req: Request, res: Response, next: NextFunction) =>
+    handle(
+        () =>
+            onboardingService.saveAnswers(
+                req.params.id,
+                req.userAuth!.id,
+                req.body.answers as OnboardingAnswers,
+            ),
         res,
         next,
     );
@@ -116,17 +112,3 @@ export const provision = (req: Request, res: Response, next: NextFunction) =>
         next,
         202,
     );
-
-export const installationToken = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const installationId = Number(req.params.installationId);
-        if (!Number.isSafeInteger(installationId))
-            throw new ValidationError('Invalid installation ID');
-        if (!(await installationIsJoined(installationId)))
-            throw new ValidationError('Installation is not associated with a joined project');
-        const data = await github.createInstallationToken(installationId);
-        return sendSuccess(res, { data });
-    } catch (error) {
-        next(error);
-    }
-};

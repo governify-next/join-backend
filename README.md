@@ -1,19 +1,26 @@
 # Governify Join Backend
 
-Orchestrates project onboarding into Governify. The first provider is GitHub, with agreement templates supplied by Registry's public catalog.
+Orchestrates declarative project onboarding into Governify. During this early stage, Join owns a local mock catalog for template discovery; completed onboardings are still provisioned through the real Scope Manager, Registry and Director APIs.
 
-The current proof of concept projects Registry's public `CS169L-Sp26` example into a four-metric agreement: the In-Progress issue/branch correlation and the team approved-merged-pull-request correlation. Metric and fetcher definitions remain authoritative in Registry.
+Agreement and Guarantee Templates live in `src/data/agreementTemplates.ts`. Their separate, versioned onboarding contracts live in `src/data/onboardingDefinitions.ts`. A definition declares reusable modules, required inputs, dependency-aware option sources, and semantic mappings into the Agreement signatures and Scope payload.
+
+The Mongo worker only owns checkpoints and retries. `ecosystemPublisher.service.ts` is the downstream adapter for Registry, Scope Manager and Director, keeping publication replaceable without coupling it to the wizard contract.
+
+The demo catalog contains a basic GitHub agreement, an advanced GitHub Project/member agreement, and a combined GitHub + mocked ZenHub + Scope agreement. Removing guarantees and requirements changes the wizard without frontend changes.
 
 ## Responsibilities
 
 - Authenticate Governify users through the Authenticator `/me` contract.
-- Install and verify a GitHub App, enumerate repositories, Projects V2 boards, status fields, and collaborators.
+- Install and verify a GitHub App; enumerate repositories, Projects V2 boards, status fields, collaborators, and issues.
+- Simulate ZenHub authorization, workspaces, pipelines, and users with deterministic mocks.
 - Persist resumable onboarding sessions and project associations.
-- Generate agreement-version signatures from guided GitHub configuration.
-- Provision Scope Manager, Registry, and Director resources with durable checkpoints.
-- Mint short-lived GitHub installation tokens for service-authenticated collectors.
+- Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
+- Generate per-project and per-member signatures from explicit subjects in the integration definition.
+- Send the completed onboarding and Agreement copy to Scope Manager, create/reuse the Agreement collection and version in Registry, start an asynchronous state generation, and create an hourly Director task.
+- Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
+- Mint one initial GitHub installation token while creating the Agreement version.
 
-GitHub user and installation access tokens are never persisted. Agreement fetcher configuration contains only a durable `{ provider, installationId }` credential reference.
+The initial installation token, its expiration and the durable `installationId` are written only to the Registry Agreement version so the first fetch can run immediately. Join does not place the token in its onboarding result, Scope Manager audit copy or frontend response, and exposes no token-refresh endpoint. Fetcher owns all subsequent token renewal using the `installationId`.
 
 ## Local development
 
@@ -33,4 +40,4 @@ The GitHub App must request read access to repository metadata, issues, pull req
 - `npm run lint` — run ESLint
 - `npm run format:check` — verify formatting
 
-The downstream collector/computer GitHub Projects adapter is intentionally outside this repository. It must consume `FT_GQL_GITHUB_PROJECTV2_ITEMS` and use the internal installation-token endpoint before live calculations can succeed.
+Fetcher must have the GitHub App credentials needed to replace the initial token after `tokenExpiresAt`. ZenHub resources and credentials remain demo mocks, so the hybrid example demonstrates materialization and orchestration but cannot fetch real ZenHub data yet.
