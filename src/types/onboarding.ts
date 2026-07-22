@@ -85,7 +85,6 @@ export type RequirementOperation =
     | 'github.projectFields'
     | 'github.fieldOptions'
     | 'github.collaborators'
-    | 'github.issues'
     | 'zenhub.workspaces'
     | 'zenhub.pipelines'
     | 'zenhub.donePipelines'

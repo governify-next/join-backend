@@ -11,7 +11,7 @@ The demo catalog contains a basic GitHub agreement, an advanced GitHub Project/m
 ## Responsibilities
 
 - Authenticate Governify users through the Authenticator `/me` contract.
-- Install and verify a GitHub App; enumerate repositories, Projects V2 boards, status fields, collaborators, and issues.
+- Install and verify a GitHub App; enumerate repositories, Projects V2 boards, status fields and collaborators.
 - Simulate ZenHub authorization, workspaces, pipelines, and users with deterministic mocks.
 - Persist resumable onboarding sessions and project associations.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.

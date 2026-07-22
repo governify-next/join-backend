@@ -63,8 +63,8 @@ const projectStep = step(
 );
 const peopleStep = step(
     30,
-    'GitHub people and issues',
-    'Select the collaborators and issues used by per-member and issue-specific metrics.',
+    'GitHub members',
+    'Select the collaborators used by per-member metrics.',
 );
 const zenhubStep = step(
     40,
@@ -248,24 +248,6 @@ const requirements: RequirementDefinition[] = [
         },
         validation: { minItems: 1 },
         ui: { ...peopleStep, label: 'Tracked collaborators', searchable: true },
-    },
-    {
-        id: 'github_issues',
-        module: 'github',
-        type: 'resource',
-        cardinality: 'many',
-        required: true,
-        requiredBy: [{ guarantee: 'JOIN_GITHUB_PROJECT_FLOW_TEAM' }],
-        dependsOn: ['github_repository'],
-        source: {
-            operation: 'github.issues',
-            arguments: {
-                owner: { answer: 'github_repository', path: 'owner' },
-                repository: { answer: 'github_repository', path: 'name' },
-            },
-        },
-        validation: { minItems: 1 },
-        ui: { ...peopleStep, label: 'Tracked issues', searchable: true },
     },
     {
         id: 'zenhub_workspace',
@@ -496,7 +478,6 @@ const githubProjectScopeMappings: Record<string, ValueBinding> = {
         answer: 'github_done_columns',
         transform: 'pluckName',
     },
-    'element.auditConfig.join.selectedIssues': { answer: 'github_issues' },
 };
 
 const createDefinition = (

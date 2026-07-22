@@ -156,19 +156,6 @@ export const resolveOptions = async (
                 value: collaborator,
             }));
         }
-        case 'github.issues': {
-            const issues = await github.listIssues(
-                requireGitHub(onboarding),
-                String(args.owner || ''),
-                String(args.repository || ''),
-            );
-            return issues.map((issue) => ({
-                id: String(issue.id),
-                label: `#${issue.number} ${issue.title}`,
-                description: issue.state,
-                value: issue,
-            }));
-        }
         case 'zenhub.workspaces':
             requireZenHub(onboarding);
             return zenhubWorkspaces;

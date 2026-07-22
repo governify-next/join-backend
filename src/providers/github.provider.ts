@@ -3,7 +3,7 @@ import { bootEnv } from '../config/bootConfig.js';
 import type { IOnboarding } from '../models/onboarding.model.js';
 import { UnauthorizedError, ValidationError } from '../utils/customErrors.js';
 import { requestJson } from '../utils/http.js';
-import type { GitHubIssue, GitHubProject, GitHubRepository } from './provider.types.js';
+import type { GitHubProject, GitHubRepository } from './provider.types.js';
 
 const transientStatuses = new Set([429, 502, 503, 504]);
 
@@ -193,35 +193,4 @@ export const listCollaborators = async (installationId: number, owner: string, r
         if (pageUsers.length < 100) break;
     }
     return users.map((user) => ({ username: user.login, avatarUrl: user.avatar_url }));
-};
-
-export const listIssues = async (
-    installationId: number,
-    owner: string,
-    repo: string,
-): Promise<GitHubIssue[]> => {
-    const { token } = await createInstallationToken(installationId);
-    const issues: {
-        id: number;
-        number: number;
-        title: string;
-        state: string;
-        html_url: string;
-        pull_request?: unknown;
-    }[] = [];
-    for (let page = 1; ; page += 1) {
-        const pageIssues = await requestGitHub<typeof issues>(
-            `${bootEnv.GITHUB_API_URL}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=all&per_page=100&page=${page}`,
-            { headers: apiHeaders(token) },
-        );
-        issues.push(...pageIssues.filter((issue) => !issue.pull_request));
-        if (pageIssues.length < 100) break;
-    }
-    return issues.map((issue) => ({
-        id: issue.id,
-        number: issue.number,
-        title: issue.title,
-        state: issue.state,
-        url: issue.html_url,
-    }));
 };
