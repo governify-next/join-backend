@@ -6,6 +6,13 @@ export interface GitHubRepository {
     private: boolean;
 }
 
+export interface GitHubInstallation {
+    id: number;
+    accountLogin: string;
+    accountType: string;
+    htmlUrl: string;
+}
+
 export interface GitHubProject {
     id: string;
     number: number;

@@ -15,7 +15,12 @@ import {
     ValidationError,
 } from '../utils/customErrors.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
-import { resolveOptions, validateAnswers, validatePartialAnswers } from './requirement.service.js';
+import {
+    readPath,
+    resolveOptions,
+    validateAnswers,
+    validatePartialAnswers,
+} from './requirement.service.js';
 import { TOTAL_PROVISIONING_CHECKPOINTS } from './provisioning.service.js';
 
 export const getAgreementTemplates = () => agreementTemplates.listPublic();
@@ -23,8 +28,32 @@ export const getAgreementTemplates = () => agreementTemplates.listPublic();
 const requiredIntegrations = (onboarding: IOnboarding) => onboarding.requiredIntegrations || [];
 
 const integrationConnected = (onboarding: IOnboarding, provider: IntegrationProvider) => {
-    if (provider === 'github') return Boolean(onboarding.integrations?.github?.installationId);
+    if (provider === 'github')
+        return Boolean(
+            onboarding.integrations?.github?.installationId ||
+            onboarding.integrations?.github?.installations?.length,
+        );
     return Boolean(onboarding.integrations?.zenhub?.connectionId);
+};
+
+const selectRepositoryInstallation = (onboarding: IOnboarding, answers: OnboardingAnswers) => {
+    const installationId = Number(readPath(answers.github_repository, 'installationId'));
+    if (!Number.isSafeInteger(installationId)) return;
+    const githubIntegration = onboarding.integrations?.github;
+    const installation = githubIntegration?.installations?.find(
+        (candidate) => candidate.id === installationId,
+    );
+    if (!installation && githubIntegration?.installationId !== installationId)
+        throw new ValidationError('The selected repository belongs to an unavailable installation');
+    onboarding.integrations = {
+        ...onboarding.integrations,
+        github: {
+            ...githubIntegration,
+            installationId,
+            accountLogin: installation?.accountLogin || githubIntegration?.accountLogin,
+            accountType: installation?.accountType || githubIntegration?.accountType,
+        },
+    };
 };
 
 export const create = async (user: AuthenticatedUser, agreementTemplateId: string) => {
@@ -67,10 +96,14 @@ export const connectIntegration = async (
         throw new ValidationError('This onboarding can no longer change its integrations');
 
     if (provider === 'github') {
-        const authorization = github.buildAuthorization(onboarding);
+        const authorization = github.buildUserAuthorization(onboarding);
         onboarding.integrations = {
             ...onboarding.integrations,
-            github: { stateNonce: authorization.nonceHash },
+            github: {
+                ...onboarding.integrations?.github,
+                stateNonce: authorization.nonceHash,
+                statePurpose: authorization.purpose,
+            },
         };
         onboarding.status = 'AUTHORIZING';
         await onboarding.save();
@@ -92,7 +125,7 @@ export const connectIntegration = async (
 
 export const completeGitHubAuthorization = async (params: {
     state: string;
-    installationId: number;
+    installationId?: number;
     code?: string;
 }) => {
     const state = github.verifyState(params.state);
@@ -100,20 +133,49 @@ export const completeGitHubAuthorization = async (params: {
     if (!onboarding || onboarding.userId !== state.userId)
         throw new ForbiddenError('GitHub authorization does not match an onboarding session');
     const nonceHash = createHash('sha256').update(state.nonce).digest('hex');
-    if (onboarding.integrations?.github?.stateNonce !== nonceHash)
+    if (
+        onboarding.integrations?.github?.stateNonce !== nonceHash ||
+        onboarding.integrations.github.statePurpose !== state.purpose
+    )
         throw new ForbiddenError('GitHub authorization has already been used or was replaced');
-    const installation = await github.verifyInstallationForUser(params.installationId, params.code);
+    const installations = await github.discoverUserInstallations(params.code);
+    if (params.installationId && !installations.some(({ id }) => id === params.installationId))
+        throw new ForbiddenError('GitHub installation is not associated with this user');
+
+    if (!installations.length) {
+        if (state.purpose === 'install')
+            throw new ForbiddenError(
+                'The GitHub installation is not accessible yet or is awaiting organization approval',
+            );
+        const authorization = github.buildInstallationAuthorization(onboarding);
+        onboarding.integrations = {
+            ...onboarding.integrations,
+            github: {
+                installations: [],
+                stateNonce: authorization.nonceHash,
+                statePurpose: authorization.purpose,
+            },
+        };
+        onboarding.status = 'AUTHORIZING';
+        await onboarding.save();
+        return { redirectUrl: authorization.url };
+    }
+
+    const selected =
+        installations.find(({ id }) => id === params.installationId) ||
+        (installations.length === 1 ? installations[0] : undefined);
     onboarding.integrations = {
         ...onboarding.integrations,
         github: {
-            installationId: installation.id,
-            accountLogin: installation.account.login,
-            accountType: installation.account.type,
+            installations,
+            installationId: selected?.id,
+            accountLogin: selected?.accountLogin,
+            accountType: selected?.accountType,
         },
     };
     onboarding.status = 'CONFIGURING';
     await onboarding.save();
-    return onboarding;
+    return { onboarding };
 };
 
 export const requirementOptions = async (
@@ -143,6 +205,7 @@ export const saveAnswers = async (id: string, userId: string, answers: Onboardin
             'Provisioning already created resources; retry without changing the configuration',
         );
     validatePartialAnswers(onboarding, answers);
+    selectRepositoryInstallation(onboarding, answers);
     onboarding.answers = answers;
     onboarding.status = 'CONFIGURING';
     onboarding.failure = undefined;
@@ -174,6 +237,7 @@ export const configure = async (
         );
 
     await validateAnswers(onboarding, answers, user, accessToken);
+    selectRepositoryInstallation(onboarding, answers);
     onboarding.answers = answers;
     onboarding.status = 'READY';
     onboarding.failure = undefined;

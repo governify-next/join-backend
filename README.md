@@ -11,7 +11,8 @@ The demo catalog contains a basic GitHub agreement, an advanced GitHub Project/m
 ## Responsibilities
 
 - Authenticate Governify users through the Authenticator `/me` contract.
-- Install and verify a GitHub App; enumerate repositories, Projects V2 boards, status fields and collaborators.
+- Authorize GitHub once, discover existing GitHub App installations, install automatically when none is available, and enumerate repositories across every accessible installation.
+- Resolve the installation from the selected repository, then enumerate Projects V2 boards, status fields and collaborators.
 - Simulate ZenHub authorization, workspaces, pipelines, and users with deterministic mocks.
 - Persist resumable onboarding sessions and project associations.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
@@ -31,7 +32,7 @@ npm ci
 npm run dev
 ```
 
-The GitHub App must request read access to repository metadata, issues, pull requests, collaborators, and Projects, request user authorization during installation, and use `GITHUB_CALLBACK_URL` as its callback URL.
+The GitHub App must request read access to repository metadata, issues, pull requests, collaborators, and Projects, request user authorization during installation, and use `GITHUB_CALLBACK_URL` as its callback URL. Join starts with the OAuth user flow so an existing installation returns directly to the repository selector; if the user has no accessible installation, Join forwards to GitHub installation automatically.
 
 ## Commands
 

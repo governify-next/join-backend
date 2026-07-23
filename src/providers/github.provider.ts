@@ -1,9 +1,9 @@
-import { createHash, createHmac, randomBytes, sign } from 'node:crypto';
+import { createHash, createHmac, randomBytes, sign, timingSafeEqual } from 'node:crypto';
 import { bootEnv } from '../config/bootConfig.js';
 import type { IOnboarding } from '../models/onboarding.model.js';
 import { UnauthorizedError, ValidationError } from '../utils/customErrors.js';
 import { requestJson } from '../utils/http.js';
-import type { GitHubProject, GitHubRepository } from './provider.types.js';
+import type { GitHubInstallation, GitHubProject, GitHubRepository } from './provider.types.js';
 
 const transientStatuses = new Set([429, 502, 503, 504]);
 
@@ -38,33 +38,68 @@ const appJwt = () => {
     return `${content}.${sign('RSA-SHA256', Buffer.from(content), bootEnv.GITHUB_APP_PRIVATE_KEY).toString('base64url')}`;
 };
 
-export const buildAuthorization = (onboarding: IOnboarding) => {
+type AuthorizationPurpose = 'oauth' | 'install';
+
+const buildState = (onboarding: IOnboarding, purpose: AuthorizationPurpose) => {
     const nonce = randomBytes(20).toString('base64url');
     const payload = Buffer.from(
         JSON.stringify({
             onboardingId: onboarding._id.toString(),
             userId: onboarding.userId,
             nonce,
+            purpose,
             exp: Date.now() + 10 * 60_000,
         }),
     ).toString('base64url');
     const signature = createHmac('sha256', bootEnv.JWT_SECRET).update(payload).digest('base64url');
     return {
         nonceHash: createHash('sha256').update(nonce).digest('hex'),
-        url: `https://github.com/apps/${encodeURIComponent(bootEnv.GITHUB_APP_SLUG)}/installations/new?state=${encodeURIComponent(`${payload}.${signature}`)}`,
+        state: `${payload}.${signature}`,
+    };
+};
+
+export const buildUserAuthorization = (onboarding: IOnboarding) => {
+    const authorization = buildState(onboarding, 'oauth');
+    const query = new URLSearchParams({
+        client_id: bootEnv.GITHUB_APP_CLIENT_ID,
+        redirect_uri: bootEnv.GITHUB_CALLBACK_URL,
+        state: authorization.state,
+    });
+    return {
+        nonceHash: authorization.nonceHash,
+        purpose: 'oauth' as const,
+        url: `https://github.com/login/oauth/authorize?${query.toString()}`,
+    };
+};
+
+export const buildInstallationAuthorization = (onboarding: IOnboarding) => {
+    const authorization = buildState(onboarding, 'install');
+    return {
+        nonceHash: authorization.nonceHash,
+        purpose: 'install' as const,
+        url: `https://github.com/apps/${encodeURIComponent(bootEnv.GITHUB_APP_SLUG)}/installations/new?state=${encodeURIComponent(authorization.state)}`,
     };
 };
 
 export const verifyState = (state: string) => {
     const [payload, signature] = state.split('.');
     const expected = createHmac('sha256', bootEnv.JWT_SECRET).update(payload).digest('base64url');
-    if (!signature || signature !== expected) throw new UnauthorizedError('Invalid GitHub state');
+    const actualBuffer = Buffer.from(signature || '');
+    const expectedBuffer = Buffer.from(expected);
+    if (
+        actualBuffer.length !== expectedBuffer.length ||
+        !timingSafeEqual(actualBuffer, expectedBuffer)
+    )
+        throw new UnauthorizedError('Invalid GitHub state');
     const value = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
         onboardingId: string;
         userId: string;
         nonce: string;
+        purpose: AuthorizationPurpose;
         exp: number;
     };
+    if (!['oauth', 'install'].includes(value.purpose))
+        throw new UnauthorizedError('Invalid GitHub authorization purpose');
     if (value.exp < Date.now()) throw new UnauthorizedError('GitHub state expired');
     return value;
 };
@@ -76,30 +111,49 @@ export const createInstallationToken = async (installationId: number) =>
     );
 
 const exchangeUserCode = (code: string) =>
-    requestGitHub<{ access_token: string }>('https://github.com/login/oauth/access_token', {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            client_id: bootEnv.GITHUB_APP_CLIENT_ID,
-            client_secret: bootEnv.GITHUB_APP_CLIENT_SECRET,
-            code,
-            redirect_uri: bootEnv.GITHUB_CALLBACK_URL,
-        }),
-    });
+    requestGitHub<{ access_token?: string; error?: string; error_description?: string }>(
+        'https://github.com/login/oauth/access_token',
+        {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_id: bootEnv.GITHUB_APP_CLIENT_ID,
+                client_secret: bootEnv.GITHUB_APP_CLIENT_SECRET,
+                code,
+                redirect_uri: bootEnv.GITHUB_CALLBACK_URL,
+            }),
+        },
+    );
 
-export const verifyInstallationForUser = async (installationId: number, code?: string) => {
+export const discoverUserInstallations = async (code?: string): Promise<GitHubInstallation[]> => {
     if (!code) throw new UnauthorizedError('GitHub user authorization was not completed');
     const userToken = await exchangeUserCode(code);
-    const installations = await requestGitHub<{ installations: { id: number }[] }>(
-        `${bootEnv.GITHUB_API_URL}/user/installations`,
-        { headers: apiHeaders(userToken.access_token) },
-    );
-    if (!installations.installations.some((installation) => installation.id === installationId))
-        throw new UnauthorizedError('GitHub installation is not associated with this user');
-    return requestGitHub<{ id: number; account: { login: string; type: string } }>(
-        `${bootEnv.GITHUB_API_URL}/app/installations/${installationId}`,
-        { headers: apiHeaders(appJwt()) },
-    );
+    if (!userToken.access_token)
+        throw new UnauthorizedError(
+            userToken.error_description || userToken.error || 'GitHub authorization failed',
+        );
+    const installations: GitHubInstallation[] = [];
+    for (let page = 1; ; page += 1) {
+        const result = await requestGitHub<{
+            installations: {
+                id: number;
+                account: { login: string; type: string };
+                html_url?: string;
+            }[];
+        }>(`${bootEnv.GITHUB_API_URL}/user/installations?per_page=100&page=${page}`, {
+            headers: apiHeaders(userToken.access_token),
+        });
+        installations.push(
+            ...result.installations.map((installation) => ({
+                id: installation.id,
+                accountLogin: installation.account.login,
+                accountType: installation.account.type,
+                htmlUrl: installation.html_url || '',
+            })),
+        );
+        if (result.installations.length < 100) break;
+    }
+    return installations;
 };
 
 export const listRepositories = async (installationId: number): Promise<GitHubRepository[]> => {

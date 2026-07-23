@@ -57,9 +57,30 @@ export const readPath = (value: unknown, path?: string): unknown => {
 const resolveReference = (answers: OnboardingAnswers, reference: AnswerReference) =>
     readPath(answers[reference.answer], reference.path);
 
-const requireGitHub = (onboarding: IOnboarding) => {
-    const installationId = onboarding.integrations?.github?.installationId;
-    if (!installationId) throw new ValidationError('Connect GitHub before selecting its resources');
+const githubInstallations = (onboarding: IOnboarding) => {
+    const integration = onboarding.integrations?.github;
+    if (integration?.installations?.length) return integration.installations;
+    if (integration?.installationId)
+        return [
+            {
+                id: integration.installationId,
+                accountLogin: integration.accountLogin || 'GitHub',
+                accountType: integration.accountType || 'Account',
+                htmlUrl: '',
+            },
+        ];
+    throw new ValidationError('Connect GitHub before selecting its resources');
+};
+
+const requireGitHub = (onboarding: IOnboarding, answers: OnboardingAnswers) => {
+    const installations = githubInstallations(onboarding);
+    const repositoryInstallationId = Number(readPath(answers.github_repository, 'installationId'));
+    const installationId = Number.isSafeInteger(repositoryInstallationId)
+        ? repositoryInstallationId
+        : onboarding.integrations?.github?.installationId ||
+          (installations.length === 1 ? installations[0].id : undefined);
+    if (!installationId || !installations.some(({ id }) => id === installationId))
+        throw new ValidationError('Select a GitHub repository before its dependent resources');
     return installationId;
 };
 
@@ -103,17 +124,31 @@ export const resolveOptions = async (
             }));
         }
         case 'github.repositories': {
-            const repositories = await github.listRepositories(requireGitHub(onboarding));
-            return repositories.map((repository) => ({
-                id: String(repository.id),
-                label: repository.fullName,
-                description: repository.private ? 'Private repository' : 'Public repository',
-                value: repository,
-            }));
+            const installations = githubInstallations(onboarding);
+            const repositories = await Promise.all(
+                installations.map(async (installation) => ({
+                    installation,
+                    repositories: await github.listRepositories(installation.id),
+                })),
+            );
+            return repositories.flatMap(({ installation, repositories: available }) =>
+                available.map((repository) => ({
+                    id: `${installation.id}:${repository.id}`,
+                    label: repository.fullName,
+                    description: `${installation.accountLogin} · ${
+                        repository.private ? 'Private repository' : 'Public repository'
+                    }`,
+                    value: {
+                        ...repository,
+                        installationId: installation.id,
+                        installationAccount: installation.accountLogin,
+                    },
+                })),
+            );
         }
         case 'github.projects': {
             const projects = await github.listProjects(
-                requireGitHub(onboarding),
+                requireGitHub(onboarding, answers),
                 String(args.owner || ''),
             );
             return projects.map((project) => ({
@@ -146,7 +181,7 @@ export const resolveOptions = async (
         }
         case 'github.collaborators': {
             const collaborators = await github.listCollaborators(
-                requireGitHub(onboarding),
+                requireGitHub(onboarding, answers),
                 String(args.owner || ''),
                 String(args.repository || ''),
             );

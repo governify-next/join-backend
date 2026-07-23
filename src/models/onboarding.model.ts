@@ -6,6 +6,7 @@ import type {
     IntegrationProvider,
     PublicAgreementTemplate,
 } from '../types/onboarding.js';
+import type { GitHubInstallation } from '../providers/provider.types.js';
 
 export interface IOnboarding extends Document {
     userId: string;
@@ -20,6 +21,8 @@ export interface IOnboarding extends Document {
             accountLogin?: string;
             accountType?: string;
             stateNonce?: string;
+            statePurpose?: 'oauth' | 'install';
+            installations?: GitHubInstallation[];
         };
         zenhub?: {
             connectionId?: string;
