@@ -206,7 +206,6 @@ export const withInitialGitHubCredential = (
                     Number(reference.installationId) !== credential.installationId
                 )
                     continue;
-                fetcher.fetcherConfig.installationId = credential.installationId;
                 fetcher.fetcherConfig.token = credential.token;
                 fetcher.fetcherConfig.tokenExpiresAt = credential.expiresAt;
                 injected += 1;
