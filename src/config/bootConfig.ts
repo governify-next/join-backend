@@ -16,6 +16,8 @@ export const bootEnv = {
     SCOPE_MANAGER_SERVICE_URL: process.env.SCOPE_MANAGER_SERVICE_URL || 'http://localhost:5901',
     REGISTRY_SERVICE_URL: process.env.REGISTRY_SERVICE_URL || 'http://localhost:5902',
     DIRECTOR_SERVICE_URL: process.env.DIRECTOR_SERVICE_URL || 'http://localhost:5906',
+    CLIENT_ID: process.env.CLIENT_ID || 'join-backend',
+    CLIENT_SECRET: process.env.CLIENT_SECRET || 'join_backend_client_secret',
     JWT_SECRET: process.env.JWT_SECRET || 'governify_next_secret_key',
     GITHUB_APP_ID: process.env.GITHUB_APP_ID || '',
     GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG || 'governify-next',
@@ -34,6 +36,8 @@ export const bootEnv = {
 export const validateBootConfig = () => {
     const errors: string[] = [];
     const required = [
+        'CLIENT_ID',
+        'CLIENT_SECRET',
         'JWT_SECRET',
         'GITHUB_APP_ID',
         'GITHUB_APP_CLIENT_ID',

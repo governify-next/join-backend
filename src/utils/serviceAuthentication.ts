@@ -1,21 +1,40 @@
-import { createHmac } from 'node:crypto';
 import { bootEnv } from '../config/bootConfig.js';
 
-const serviceToken = () => {
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(
-        JSON.stringify({
-            service: bootEnv.GOV_SERVICE_NAME,
-            type: 'service-token',
-            exp: Math.floor(Date.now() / 1000) + 300,
+const AUTHENTICATOR_SERVICE_URL = bootEnv.AUTHENTICATOR_SERVICE_URL;
+const CLIENT_ID = bootEnv.CLIENT_ID;
+const CLIENT_SECRET = bootEnv.CLIENT_SECRET;
+
+let serviceToken: string | null = null;
+
+export const fetchServiceToken = async () => {
+    const response = await fetch(`${AUTHENTICATOR_SERVICE_URL}/api/v1/services/token`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            clientId: CLIENT_ID,
+            clientSecret: CLIENT_SECRET,
         }),
-    ).toString('base64url');
-    const unsigned = `${header}.${payload}`;
-    const signature = createHmac('sha256', bootEnv.JWT_SECRET).update(unsigned).digest('base64url');
-    return `${unsigned}.${signature}`;
+    });
+
+    const result = (await response.json()) as {
+        success?: boolean;
+        data?: { token?: string };
+    };
+    const token = result.data?.token;
+
+    if (!response.ok || !result.success || !token)
+        throw new Error(
+            `Failed to fetch service token from authenticator (status: ${response.status})`,
+        );
+
+    serviceToken = token;
+
+    return token;
 };
 
 export const serviceHeaders = () => ({
-    Authorization: `Bearer ${serviceToken()}`,
+    Authorization: `Bearer ${serviceToken}`,
     'Content-Type': 'application/json',
 });
