@@ -6,7 +6,6 @@ import * as onboardingRepository from '../repositories/onboarding.repository.js'
 import type { IntegrationProvider, MaterializedOnboarding } from '../types/onboarding.js';
 import { ForbiddenError, ValidationError } from '../utils/customErrors.js';
 import { getLogger } from '../utils/logger.js';
-import { serviceHeaders } from '../utils/serviceAuthentication.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import * as ecosystem from './ecosystemPublisher.service.js';
 import { materialize, withInitialGitHubCredential } from './materialization.service.js';
@@ -52,11 +51,7 @@ const checkpoint = async (
 const revalidateResources = async (onboarding: IOnboarding) => {
     const answers = onboarding.answers || {};
     const organizationName = String(readPath(answers.scope_organization, 'name') || '');
-    const organizations = await organizationsForUser(
-        onboarding.username,
-        onboarding.userId,
-        serviceHeaders(),
-    );
+    const organizations = await organizationsForUser(onboarding.username, onboarding.userId);
     if (!organizations.some((organization) => organization.name === organizationName))
         throw new ForbiddenError('The user is no longer a member of the target organization');
 

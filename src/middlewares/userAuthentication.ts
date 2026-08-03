@@ -7,7 +7,6 @@ import { requestJson } from '../utils/http.js';
 declare module 'express' {
     interface Request {
         userAuth?: AuthenticatedUser;
-        accessToken?: string;
     }
 }
 
@@ -25,7 +24,6 @@ export const requireUser = async (req: Request, _res: Response, next: NextFuncti
             email: user.email ? String(user.email) : undefined,
             systemRole: user.systemRole ? String(user.systemRole) : undefined,
         };
-        req.accessToken = authorization.slice('Bearer '.length);
         next();
     } catch {
         next(new UnauthorizedError('Invalid or expired Governify session'));

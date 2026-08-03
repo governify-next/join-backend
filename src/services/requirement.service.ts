@@ -94,7 +94,6 @@ export const resolveOptions = async (
     requirement: RequirementDefinition,
     answers: OnboardingAnswers,
     user: AuthenticatedUser,
-    accessToken: string,
 ): Promise<ResourceOption[]> => {
     if (requirement.type !== 'resource' || !requirement.source)
         throw new ValidationError(`Requirement '${requirement.id}' does not provide options`);
@@ -111,9 +110,7 @@ export const resolveOptions = async (
 
     switch (requirement.source.operation) {
         case 'scope.organizations': {
-            const organizations = await organizationsForUser(user.username, user.id, {
-                Authorization: `Bearer ${accessToken}`,
-            });
+            const organizations = await organizationsForUser(user.username, user.id);
             return organizations.map((organization) => ({
                 id: organization.name,
                 label: String(organization.displayName || organization.name),
@@ -265,7 +262,6 @@ export const validateAnswers = async (
     onboarding: IOnboarding,
     answers: OnboardingAnswers,
     user: AuthenticatedUser,
-    accessToken: string,
 ) => {
     validatePartialAnswers(onboarding, answers);
 
@@ -273,7 +269,7 @@ export const validateAnswers = async (
         const value = answers[requirement.id];
         validateValue(requirement, value);
         if (requirement.type !== 'resource' || value === undefined) continue;
-        const options = await resolveOptions(onboarding, requirement, answers, user, accessToken);
+        const options = await resolveOptions(onboarding, requirement, answers, user);
         const allowed = new Set(options.map((option) => serialized(option.value)));
         const selected = requirement.cardinality === 'many' ? (value as unknown[]) : [value];
         if (selected.some((item) => !allowed.has(serialized(item))))

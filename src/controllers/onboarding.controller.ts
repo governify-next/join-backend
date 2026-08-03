@@ -96,7 +96,6 @@ export const requirementOptions = (req: Request, res: Response, next: NextFuncti
             onboardingService.requirementOptions(
                 req.params.id,
                 req.userAuth!,
-                req.accessToken!,
                 req.params.requirementId,
                 (req.body.answers || {}) as OnboardingAnswers,
             ),
@@ -110,7 +109,6 @@ export const configure = (req: Request, res: Response, next: NextFunction) =>
             onboardingService.configure(
                 req.params.id,
                 req.userAuth!,
-                req.accessToken!,
                 req.body.answers as OnboardingAnswers,
             ),
         res,

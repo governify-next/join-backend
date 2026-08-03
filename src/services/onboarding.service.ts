@@ -181,7 +181,6 @@ export const completeGitHubAuthorization = async (params: {
 export const requirementOptions = async (
     id: string,
     user: AuthenticatedUser,
-    accessToken: string,
     requirementId: string,
     proposedAnswers: OnboardingAnswers,
 ) => {
@@ -191,7 +190,7 @@ export const requirementOptions = async (
     );
     if (!requirement) throw new NotFoundError('Onboarding requirement not found');
     const answers = { ...(onboarding.answers || {}), ...(proposedAnswers || {}) };
-    return resolveOptions(onboarding, requirement, answers, user, accessToken);
+    return resolveOptions(onboarding, requirement, answers, user);
 };
 
 export const saveAnswers = async (id: string, userId: string, answers: OnboardingAnswers) => {
@@ -216,7 +215,6 @@ export const saveAnswers = async (id: string, userId: string, answers: Onboardin
 export const configure = async (
     id: string,
     user: AuthenticatedUser,
-    accessToken: string,
     answers: OnboardingAnswers,
 ) => {
     const onboarding = await getOwned(id, user.id);
@@ -236,7 +234,7 @@ export const configure = async (
             'Provisioning already created resources; retry without changing the configuration',
         );
 
-    await validateAnswers(onboarding, answers, user, accessToken);
+    await validateAnswers(onboarding, answers, user);
     selectRepositoryInstallation(onboarding, answers);
     onboarding.answers = answers;
     onboarding.status = 'READY';
