@@ -24,6 +24,6 @@ COPY --from=build /usr/src/app/src/docs ./src/docs
 RUN addgroup -S app && adduser -S app -G app
 USER app
 
-EXPOSE 5807
+EXPOSE 5907
 
 CMD ["node", "dist/server.js"]

@@ -9,7 +9,7 @@ export const bootEnv = {
     NODE_ENV: process.env.NODE_ENV || 'development',
     GOV_LOG_LEVEL: process.env.GOV_LOG_LEVEL || 'INFO',
     GOV_SERVICE_NAME: process.env.GOV_SERVICE_NAME || 'join-backend',
-    PORT: process.env.PORT || '5807',
+    PORT: process.env.PORT || '5907',
     MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/governify-next',
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
     AUTHENTICATOR_SERVICE_URL: process.env.AUTHENTICATOR_SERVICE_URL || 'http://localhost:5900',
@@ -26,7 +26,7 @@ export const bootEnv = {
     GITHUB_APP_PRIVATE_KEY: (process.env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
     GITHUB_CALLBACK_URL:
         process.env.GITHUB_CALLBACK_URL ||
-        'http://localhost:5807/api/v1/integrations/github/callback',
+        'http://localhost:5907/api/v1/integrations/github/callback',
     GITHUB_API_URL: process.env.GITHUB_API_URL || 'https://api.github.com',
     ONBOARDING_TTL_SECONDS: Number(process.env.ONBOARDING_TTL_SECONDS || 24 * 60 * 60),
     WORKER_INTERVAL_MS: Number(process.env.WORKER_INTERVAL_MS || 2_000),

@@ -32,6 +32,8 @@ npm ci
 npm run dev
 ```
 
+Standalone development and container runs listen on port `5907` by default. Managed deployments can continue to override `PORT` explicitly.
+
 The GitHub App must request read access to repository metadata, issues, pull requests, collaborators, and Projects, request user authorization during installation, and use `GITHUB_CALLBACK_URL` as its callback URL. Join starts with the OAuth user flow so an existing installation returns directly to the repository selector; if the user has no accessible installation, Join forwards to GitHub installation automatically.
 
 ## Commands
