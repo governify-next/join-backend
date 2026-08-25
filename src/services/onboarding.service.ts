@@ -8,12 +8,7 @@ import type {
     IntegrationProvider,
     OnboardingAnswers,
 } from '../types/onboarding.js';
-import {
-    DuplicateKeyError,
-    ForbiddenError,
-    NotFoundError,
-    ValidationError,
-} from '../utils/customErrors.js';
+import { ForbiddenError, NotFoundError, ValidationError } from '../utils/customErrors.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import {
     readPath,
@@ -250,18 +245,6 @@ export const queueProvisioning = async (id: string, userId: string) => {
     if (onboarding.status === 'COMPLETED') return onboarding;
     if (!['READY', 'FAILED'].includes(onboarding.status))
         throw new ValidationError('Onboarding is not ready for provisioning');
-    try {
-        const joined = await onboardingRepository.reserveJoinedProject(onboarding);
-        if (joined.onboardingId.toString() !== onboarding._id.toString())
-            throw new DuplicateKeyError('This source is already joined to the organization');
-    } catch (error) {
-        if (error instanceof DuplicateKeyError) throw error;
-        if ((error as { code?: number }).code === 11000)
-            throw new DuplicateKeyError(
-                'The source or element name is already used in this organization',
-            );
-        throw error;
-    }
     onboarding.status = 'PROVISIONING';
     onboarding.failure = undefined;
     onboarding.result = {

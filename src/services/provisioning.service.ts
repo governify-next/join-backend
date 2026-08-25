@@ -16,9 +16,8 @@ const logger = getLogger().setTag('provisioning.service.ts');
 const PROVISIONING_CHECKPOINTS = [
     'validated',
     'materialized',
-    'guaranteeTemplates',
     'agreementTemplate',
-    'scopeElement',
+    'scope',
     'agreementCollection',
     'agreementVersion',
     'initialCalculation',
@@ -50,14 +49,19 @@ const checkpoint = async (
 
 const revalidateResources = async (onboarding: IOnboarding) => {
     const answers = onboarding.answers || {};
-    const organizationName = String(readPath(answers.scope_organization, 'name') || '');
+    const organizationId = String(readPath(answers.scope_organization, '_id') || '');
     const organizations = await organizationsForUser(onboarding.username, onboarding.userId);
-    if (!organizations.some((organization) => organization.name === organizationName))
+    const organization = organizations.find(
+        (candidate) => String(candidate._id) === organizationId,
+    );
+    if (!organization)
         throw new ForbiddenError('The user is no longer a member of the target organization');
+    answers.scope_organization = organization;
+    onboarding.answers = answers;
 
     const repository = answers.github_repository;
     const installationId = onboarding.integrations?.github?.installationId;
-    if (!repository || !installationId) return;
+    if (!repository || !installationId) return organization;
     const repositories = await github.listRepositories(installationId);
     if (
         !repositories.some(
@@ -67,22 +71,25 @@ const revalidateResources = async (onboarding: IOnboarding) => {
         throw new ForbiddenError('The GitHub App can no longer access the selected repository');
 
     const project = answers.github_project;
-    if (!project) return;
+    if (!project) return organization;
     const projects = await github.listProjects(
         installationId,
         String(readPath(project, 'owner') || readPath(repository, 'owner') || ''),
     );
     if (!projects.some((candidate) => candidate.id === readPath(project, 'id')))
         throw new ForbiddenError('The GitHub App can no longer access the selected Project');
+    return organization;
 };
 
 const provision = async (onboarding: IOnboarding) => {
     if (!onboarding.answers) throw new ValidationError('Onboarding answers are missing');
 
+    await revalidateResources(onboarding);
+    const current = await agreementTemplates.getPublic(onboarding.agreementTemplate._id);
+    if (current.onboardingDefinition.id !== onboarding.onboardingDefinition.id)
+        throw new ValidationError('The onboarding definition changed; start a new onboarding');
+
     if (!onboarding.checkpoints.includes('validated')) {
-        const current = await agreementTemplates.getPublic(onboarding.agreementTemplate._id);
-        if (current.onboardingDefinition.id !== onboarding.onboardingDefinition.id)
-            throw new ValidationError('The onboarding definition changed; start a new onboarding');
         const missing = onboarding.requiredIntegrations.filter(
             (provider) => !connected(onboarding, provider),
         );
@@ -90,7 +97,6 @@ const provision = async (onboarding: IOnboarding) => {
             throw new ForbiddenError(`Required integrations are missing: ${missing.join(', ')}`);
         onboarding.agreementTemplate = current.agreementTemplate;
         onboarding.onboardingDefinition = current.onboardingDefinition;
-        await revalidateResources(onboarding);
         await checkpoint(onboarding, 'validated');
     }
 
@@ -101,48 +107,61 @@ const provision = async (onboarding: IOnboarding) => {
         await checkpoint(onboarding, 'materialized', { materialized: payload });
     }
 
-    const organizationName = String(payload.scope.organizationName);
-    const elementName = String(readPath(payload.scope, 'element.name'));
-    const guaranteeNames = new Set(
-        payload.agreement.agreementTemplate.guarantees.map(
-            ({ guaranteeTemplateName }) => guaranteeTemplateName,
-        ),
-    );
-
-    if (!onboarding.checkpoints.includes('guaranteeTemplates')) {
-        await ecosystem.ensureGuaranteeTemplates(
-            guaranteeTemplates.filter(({ name }) => guaranteeNames.has(name)),
-        );
-        await checkpoint(onboarding, 'guaranteeTemplates');
-    }
-    if (!onboarding.checkpoints.includes('agreementTemplate')) {
-        await ecosystem.ensureAgreementTemplate(organizationName, payload);
-        await checkpoint(onboarding, 'agreementTemplate');
-    }
-    if (!onboarding.checkpoints.includes('scopeElement')) {
-        await ecosystem.ensureScopeElement(
-            onboarding._id.toString(),
+    const organizationName = String(readPath(onboarding.answers.scope_organization, 'name') || '');
+    const organizationId = String(readPath(onboarding.answers.scope_organization, '_id') || '');
+    delete payload.scope.organizationName;
+    payload.scope.organizationId = organizationId;
+    const scopeName = String(readPath(payload.scope, 'name'));
+    let agreementTemplateName = String(onboarding.result?.agreementTemplateName || '');
+    if (!onboarding.checkpoints.includes('agreementTemplate') || !agreementTemplateName) {
+        agreementTemplateName = await ecosystem.ensureAgreementTemplate(
             organizationName,
-            elementName,
+            organizationId,
             payload,
         );
-        await checkpoint(onboarding, 'scopeElement');
+        await checkpoint(onboarding, 'agreementTemplate', { agreementTemplateName });
+    }
+    const onboardingResourceId = onboarding._id.toString();
+    const storedScopeId = String(onboarding.result?.scopeId || '');
+    let scopeId = storedScopeId || onboardingResourceId;
+    if (!onboarding.checkpoints.includes('scope') || !storedScopeId) {
+        scopeId = await ecosystem.ensureScope(
+            onboardingResourceId,
+            organizationName,
+            scopeId,
+            onboarding.userId,
+            payload,
+        );
+        await checkpoint(onboarding, 'scope', { scopeId });
     }
 
+    const storedCollectionId = String(onboarding.result?.collectionId || '');
+    let collectionId = storedCollectionId;
     let collectionName = String(onboarding.result?.collectionName || '');
-    if (!onboarding.checkpoints.includes('agreementCollection') || !collectionName) {
-        collectionName = await ecosystem.ensureAgreementCollection(
+    if (!onboarding.checkpoints.includes('agreementCollection') || !storedCollectionId) {
+        const collection = await ecosystem.ensureAgreementCollection(
             organizationName,
-            elementName,
+            scopeId,
             payload,
         );
-        await checkpoint(onboarding, 'agreementCollection', { collectionName });
+        collectionId = collection.id;
+        collectionName = collection.name;
+        await checkpoint(onboarding, 'agreementCollection', { collectionId, collectionName });
     }
-    if (!onboarding.checkpoints.includes('agreementVersion')) {
-        const agreementVersion = await ecosystem.ensureAgreementVersion(
+
+    let agreementVersion = onboarding.result?.agreementVersion as
+        | Record<string, unknown>
+        | undefined;
+    let agreementVersionNumber = Number(agreementVersion?.versionNumber);
+    if (
+        !onboarding.checkpoints.includes('agreementVersion') ||
+        !Number.isSafeInteger(agreementVersionNumber)
+    ) {
+        agreementVersion = await ecosystem.ensureAgreementVersion(
             organizationName,
-            elementName,
-            collectionName,
+            scopeId,
+            collectionId,
+            agreementTemplateName,
             payload,
             async () => {
                 const installationId = onboarding.integrations?.github?.installationId;
@@ -155,8 +174,12 @@ const provision = async (onboarding: IOnboarding) => {
                 });
             },
         );
+        agreementVersionNumber = Number(agreementVersion.versionNumber);
         await checkpoint(onboarding, 'agreementVersion', { agreementVersion });
     }
+    if (!Number.isSafeInteger(agreementVersionNumber))
+        throw new Error('Registry did not return an agreement version number');
+
     if (!onboarding.checkpoints.includes('initialCalculation')) {
         const calculationDate =
             (onboarding.result?.initialCalculationDate as string | undefined) ||
@@ -170,29 +193,35 @@ const provision = async (onboarding: IOnboarding) => {
         }
         await ecosystem.generateInitialState(
             organizationName,
-            elementName,
-            collectionName,
+            scopeId,
+            collectionId,
+            agreementVersionNumber,
             calculationDate,
         );
         await checkpoint(onboarding, 'initialCalculation');
     }
     if (!onboarding.checkpoints.includes('schedule')) {
-        const task = await ecosystem.ensureCalculationSchedule(
+        const tasks = await ecosystem.ensureCalculationSchedule(
             organizationName,
-            elementName,
-            collectionName,
-            payload,
+            scopeId,
+            collectionId,
+            agreementVersionNumber,
         );
-        await checkpoint(onboarding, 'schedule', { task });
+        await checkpoint(onboarding, 'schedule', { tasks });
     }
 
     onboarding.status = 'COMPLETED';
     onboarding.leaseOwner = undefined;
     onboarding.leaseUntil = undefined;
+    onboarding.expiresAt = undefined;
+    const result = { ...(onboarding.result || {}) };
+    delete result.organizationName;
     onboarding.result = {
-        ...(onboarding.result || {}),
-        organizationName,
-        elementName,
+        ...result,
+        organizationId,
+        scopeId,
+        scopeName,
+        collectionId,
         collectionName,
         totalCheckpoints: TOTAL_PROVISIONING_CHECKPOINTS,
         completedAt: new Date().toISOString(),

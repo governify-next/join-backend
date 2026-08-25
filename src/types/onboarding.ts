@@ -38,6 +38,7 @@ export interface PublicAgreementTemplate {
 }
 
 export interface GuaranteeTemplate {
+    _id: string;
     name: string;
     info: {
         title: string;
@@ -166,7 +167,7 @@ export interface SignatureMapping {
 export interface OnboardingDefinition {
     schemaVersion: '1.0';
     id: string;
-    agreementTemplateId: string;
+    agreementTemplateName: string;
     modules: OnboardingModule[];
     requirements: RequirementDefinition[];
     mappings: {
@@ -191,7 +192,7 @@ export interface ResourceOption {
 export type OnboardingAnswers = Record<string, unknown>;
 
 export interface SignatureInput {
-    guaranteeName: string;
+    guaranteeTemplateName: string;
     metrics: {
         metricName: string;
         fetcherConfigs: {

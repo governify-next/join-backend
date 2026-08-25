@@ -2,7 +2,7 @@ import { bootEnv } from '../config/bootConfig.js';
 import { requestJson } from '../utils/http.js';
 import { serviceHeaders } from '../utils/serviceAuthentication.js';
 
-type Organization = Record<string, unknown> & { name: string };
+type Organization = Record<string, unknown> & { _id: string; name: string };
 type Membership = { userId: unknown };
 
 const upstreamStatus = (error: unknown) =>

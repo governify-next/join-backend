@@ -1,5 +1,5 @@
 import { bootEnv } from '../config/bootConfig.js';
-import type { GuaranteeTemplate, MaterializedOnboarding } from '../types/onboarding.js';
+import type { MaterializedOnboarding } from '../types/onboarding.js';
 import { DuplicateKeyError, ValidationError } from '../utils/customErrors.js';
 import { requestJson } from '../utils/http.js';
 import { serviceHeaders } from '../utils/serviceAuthentication.js';
@@ -7,6 +7,24 @@ import { readPath } from './requirement.service.js';
 
 const downstreamStatus = (error: unknown) =>
     (error as { details?: { status?: number } }).details?.status;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const resourceId = (resource: Record<string, unknown>, resourceName: string) => {
+    const id = resource._id || resource.id;
+    if (!id) throw new ValidationError(`${resourceName} did not return an ID`);
+    return String(id);
+};
+
+const requestIfExists = async <T>(url: string): Promise<T | undefined> => {
+    try {
+        return await requestJson<T>(url, { headers: serviceHeaders() });
+    } catch (error) {
+        if (downstreamStatus(error) === 404) return undefined;
+        throw error;
+    }
+};
 
 const stable = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(stable);
@@ -24,138 +42,211 @@ const matchesExpected = (actual: Record<string, unknown>, expected: Record<strin
         stable(Object.fromEntries(Object.keys(expected).map((key) => [key, actual[key]]))),
     ) === JSON.stringify(stable(expected));
 
+const agreementTemplateIdentity = (template: Record<string, unknown>) => ({
+    name: template.name,
+    displayName: template.displayName,
+    description: template.description,
+    isPublic: template.isPublic,
+    guarantees: Array.isArray(template.guarantees)
+        ? template.guarantees.map((guarantee) => {
+              const value = guarantee as Record<string, unknown>;
+              return {
+                  guaranteeTemplateName: value.guaranteeTemplateName,
+                  comparator: value.comparator,
+                  threshold: value.threshold,
+                  window: value.window,
+              };
+          })
+        : template.guarantees,
+});
+
+const agreementCollectionIdentity = (collection: Record<string, unknown>) => ({
+    name: collection.name,
+    displayName: collection.displayName,
+    description: collection.description,
+    fields: collection.fields,
+    permissions: collection.permissions,
+});
+
 const sameValidity = (left: Record<string, unknown> | undefined, right: Record<string, unknown>) =>
     left?.timezone === right.timezone &&
     new Date(String(left?.initial)).getTime() === new Date(String(right.initial)).getTime() &&
     new Date(String(left?.end)).getTime() === new Date(String(right.end)).getTime();
 
-const createOrReuseGuaranteeTemplate = async (template: GuaranteeTemplate) => {
-    const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/guaranteeTemplates`;
-    try {
-        await requestJson(collectionUrl, {
-            method: 'POST',
-            headers: serviceHeaders(),
-            body: JSON.stringify(template),
-        });
-        return;
-    } catch (error) {
-        if (downstreamStatus(error) !== 409) throw error;
-    }
-    const existing = await requestJson<Record<string, unknown>>(
-        `${collectionUrl}/${encodeURIComponent(template.name)}`,
-        { headers: serviceHeaders() },
-    );
-    if (!matchesExpected(existing, template as unknown as Record<string, unknown>))
-        throw new DuplicateKeyError(
-            `Guarantee template '${template.name}' already exists with different contents`,
-        );
-};
-
-export const ensureGuaranteeTemplates = async (templates: GuaranteeTemplate[]) => {
-    for (const template of templates) await createOrReuseGuaranteeTemplate(template);
-};
-
 export const ensureAgreementTemplate = async (
     organizationName: string,
+    organizationId: string,
     payload: MaterializedOnboarding,
 ) => {
     const template = payload.agreement.agreementTemplate;
+    const templateAlreadyBelongsToOrganization = String(template.orgId) === organizationId;
     const input = {
         name: template.name,
         displayName: template.displayName,
         description: template.description,
-        isPublic: false,
-        guarantees: template.guarantees,
+        isPublic: templateAlreadyBelongsToOrganization ? template.isPublic : false,
+        guarantees: template.guarantees.map((guarantee) => ({
+            guaranteeTemplateName: guarantee.guaranteeTemplateName,
+            comparator: guarantee.comparator,
+            threshold: guarantee.threshold,
+            window: guarantee.window,
+        })),
     };
     const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/agreementTemplates`;
+    const resourceUrl = `${collectionUrl}/${encodeURIComponent(template.name)}`;
+    const existing = await requestIfExists<Record<string, unknown>>(resourceUrl);
+    if (existing) {
+        if (!matchesExpected(agreementTemplateIdentity(existing), agreementTemplateIdentity(input)))
+            throw new DuplicateKeyError(
+                `Agreement template '${template.name}' already exists with different contents`,
+            );
+        return template.name;
+    }
     try {
-        await requestJson(collectionUrl, {
+        const created = await requestJson<Record<string, unknown>>(collectionUrl, {
             method: 'POST',
             headers: serviceHeaders(),
             body: JSON.stringify(input),
         });
-        return;
+        return String(created.name || template.name);
     } catch (error) {
-        if (downstreamStatus(error) !== 409) throw error;
+        const createdByConcurrentAttempt =
+            await requestIfExists<Record<string, unknown>>(resourceUrl);
+        if (!createdByConcurrentAttempt) throw error;
+        if (
+            !matchesExpected(
+                agreementTemplateIdentity(createdByConcurrentAttempt),
+                agreementTemplateIdentity(input),
+            )
+        )
+            throw new DuplicateKeyError(
+                `Agreement template '${template.name}' already exists with different contents`,
+            );
+        return template.name;
     }
-    const existing = await requestJson<Record<string, unknown>>(
-        `${collectionUrl}/${encodeURIComponent(template.name)}`,
-        { headers: serviceHeaders() },
-    );
-    if (!matchesExpected(existing, input))
-        throw new DuplicateKeyError(
-            `Agreement template '${template.name}' already exists with different contents`,
-        );
 };
 
-export const ensureScopeElement = async (
+export const ensureScope = async (
     onboardingId: string,
     organizationName: string,
-    elementName: string,
+    scopeId: string,
+    createdBy: string,
     payload: MaterializedOnboarding,
 ) => {
-    const element = readPath(payload.scope, 'element');
-    if (!element || typeof element !== 'object' || Array.isArray(element))
-        throw new ValidationError('Materialized Scope element is invalid');
-    const collectionUrl = `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/elements`;
+    const scope = payload.scope;
+    const scopeName = String(scope.name || '');
+    if (!scopeName) throw new ValidationError('Materialized Scope is missing its name');
+
+    const collectionUrl = `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes`;
+    const resourceUrl = `${collectionUrl}/${encodeURIComponent(scopeId)}`;
+    const reuse = (existing: Record<string, unknown>) => {
+        if (readPath(existing, 'config.auditConfig.join.onboardingId') !== onboardingId)
+            throw new DuplicateKeyError(`Scope '${scopeId}' already belongs to another join`);
+        return resourceId(existing, `Scope '${scopeName}'`);
+    };
+
+    const existing = await requestIfExists<Record<string, unknown>>(resourceUrl);
+    if (existing) return reuse(existing);
+
     try {
-        await requestJson(collectionUrl, {
+        const created = await requestJson<Record<string, unknown>>(collectionUrl, {
             method: 'POST',
             headers: serviceHeaders(),
-            body: JSON.stringify(element),
+            body: JSON.stringify({
+                _id: scopeId,
+                name: scopeName,
+                description: scope.description,
+                type: scope.type || 'Project',
+                parentId: scope.parentId ?? null,
+                fields: Array.isArray(scope.fields) ? scope.fields : [],
+                permissions: isRecord(scope.permissions)
+                    ? scope.permissions
+                    : { view: [], edit: [], delete: [], create: [] },
+                config: isRecord(scope.config) ? scope.config : {},
+                createdBy,
+            }),
         });
-        return;
+        return resourceId(created, `Scope '${scopeName}'`);
     } catch (error) {
-        if (downstreamStatus(error) !== 409) throw error;
+        const createdByConcurrentAttempt =
+            await requestIfExists<Record<string, unknown>>(resourceUrl);
+        if (createdByConcurrentAttempt) return reuse(createdByConcurrentAttempt);
+        throw error;
     }
-    const existing = await requestJson<Record<string, unknown>>(
-        `${collectionUrl}/${encodeURIComponent(elementName)}`,
-        { headers: serviceHeaders() },
-    );
-    if (readPath(existing, 'auditConfig.join.onboardingId') !== onboardingId)
-        throw new DuplicateKeyError(`Element '${elementName}' already belongs to another join`);
 };
 
 export const ensureAgreementCollection = async (
     organizationName: string,
-    elementName: string,
+    scopeId: string,
     payload: MaterializedOnboarding,
 ) => {
     const collection = readPath(payload.scope, 'agreementCollection');
-    if (!collection || typeof collection !== 'object' || Array.isArray(collection))
+    if (!isRecord(collection))
         throw new ValidationError('Materialized agreement collection is invalid');
-    const input = collection as Record<string, unknown>;
-    const collectionName = String(input.name);
-    const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/elements/${encodeURIComponent(elementName)}/agreementCollections`;
+    // Registry currently validates the collection name as an ObjectId during creation.
+    // Keep the user-facing label while using the Scope ID as its temporary technical name.
+    const registryCollectionName = scopeId;
+    const input: Record<string, unknown> = {
+        ...collection,
+        name: registryCollectionName,
+        description:
+            collection.description ||
+            `Agreement collection for ${String(readPath(payload.scope, 'name'))}`,
+    };
+    const collectionName = registryCollectionName;
+    const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections`;
+    const reuse = (existing: Record<string, unknown>) => {
+        if (
+            !matchesExpected(
+                agreementCollectionIdentity(existing),
+                agreementCollectionIdentity(input),
+            )
+        )
+            throw new DuplicateKeyError(
+                `Agreement collection '${collectionName}' already exists with different contents`,
+            );
+        return {
+            id: resourceId(existing, `Agreement collection '${collectionName}'`),
+            name: String(existing.name || collectionName),
+        };
+    };
+
+    const findExisting = async () => {
+        const collections = await requestJson<Record<string, unknown>[]>(collectionUrl, {
+            headers: serviceHeaders(),
+        });
+        return collections.find((candidate) => candidate.name === collectionName);
+    };
+
+    const existing = await findExisting();
+    if (existing) return reuse(existing);
+
     try {
-        await requestJson(collectionUrl, {
+        const created = await requestJson<Record<string, unknown>>(collectionUrl, {
             method: 'POST',
             headers: serviceHeaders(),
             body: JSON.stringify(input),
         });
-        return collectionName;
+        return {
+            id: resourceId(created, `Agreement collection '${collectionName}'`),
+            name: String(created.name || collectionName),
+        };
     } catch (error) {
-        if (downstreamStatus(error) !== 409) throw error;
+        const createdByConcurrentAttempt = await findExisting();
+        if (createdByConcurrentAttempt) return reuse(createdByConcurrentAttempt);
+        throw error;
     }
-    const existing = await requestJson<Record<string, unknown>>(
-        `${collectionUrl}/${encodeURIComponent(collectionName)}`,
-        { headers: serviceHeaders() },
-    );
-    if (!matchesExpected(existing, input))
-        throw new DuplicateKeyError(
-            `Agreement collection '${collectionName}' has conflicting metadata`,
-        );
-    return collectionName;
 };
 
 export const ensureAgreementVersion = async (
     organizationName: string,
-    elementName: string,
-    collectionName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementTemplateName: string,
     payload: MaterializedOnboarding,
     prepareForCreate: () => Promise<MaterializedOnboarding>,
 ) => {
-    const versionsUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/elements/${encodeURIComponent(elementName)}/agreementCollections/${encodeURIComponent(collectionName)}/agreementVersions`;
+    const versionsUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions`;
     const versions = await requestJson<
         {
             versionNumber?: number;
@@ -168,21 +259,28 @@ export const ensureAgreementVersion = async (
     if (versions.length) {
         const existing = versions.at(-1)!;
         if (
-            existing.contract?.agreementTemplateName !== payload.agreement.agreementTemplate.name ||
-            !sameValidity(existing.contract.validity, validity as Record<string, unknown>)
+            String(existing.contract?.agreementTemplateName) !== agreementTemplateName ||
+            !sameValidity(existing.contract?.validity, validity as Record<string, unknown>)
         )
             throw new DuplicateKeyError(
-                `Agreement collection '${collectionName}' already contains a different version`,
+                `Agreement collection '${collectionId}' already contains a different version`,
             );
         return { versionNumber: existing.versionNumber, reused: true };
     }
     const createPayload = await prepareForCreate();
+    const signatures = createPayload.agreement.signatures.map((signature) => ({
+        guaranteeName: signature.guaranteeTemplateName,
+        metrics: signature.metrics,
+    }));
     const created = await requestJson<Record<string, unknown>>(versionsUrl, {
         method: 'POST',
         headers: serviceHeaders(),
         body: JSON.stringify({
-            contract: createPayload.agreement.contract,
-            signatures: createPayload.agreement.signatures,
+            contract: {
+                ...createPayload.agreement.contract,
+                agreementTemplateName,
+            },
+            signatures,
         }),
     });
     return { versionNumber: created.versionNumber, reused: false };
@@ -199,53 +297,34 @@ export const calculationDate = (payload: MaterializedOnboarding) => {
 
 export const generateInitialState = async (
     organizationName: string,
-    elementName: string,
-    collectionName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementVersion: number,
     date: string,
 ) =>
     requestJson(
-        `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/elements/${encodeURIComponent(elementName)}/agreementCollections/${encodeURIComponent(collectionName)}/agreementVersions/auditableVersion/states/generate?isAsync=true`,
+        `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}/states/generate?isAsync=true`,
         {
             method: 'POST',
             headers: serviceHeaders(),
-            body: JSON.stringify({ date }),
+            body: JSON.stringify({ date, temporalMode: 'CAPTURE', ifExists: 'KEEP' }),
         },
     );
 
 export const ensureCalculationSchedule = async (
     organizationName: string,
-    elementName: string,
-    collectionName: string,
-    payload: MaterializedOnboarding,
+    scopeId: string,
+    collectionId: string,
+    agreementVersion: number,
 ) => {
-    const tasksUrl = `${bootEnv.DIRECTOR_SERVICE_URL}/api/v1/tasks`;
+    const tasksUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}/tasks/states/consolidated`;
     const tasks = await requestJson<Record<string, unknown>[]>(tasksUrl, {
         headers: serviceHeaders(),
     });
-    const inputArgs = { orgName: organizationName, elementName, agColName: collectionName };
-    let task = tasks.find(
-        (candidate) =>
-            candidate.script === 'generateStates' &&
-            candidate.type === 'RECURRING' &&
-            candidate.interval === 60 * 60 * 1_000 &&
-            JSON.stringify(candidate.inputArgs) === JSON.stringify(inputArgs),
-    );
-    if (task) return task;
-    const validityInitial = new Date(
-        String(readPath(payload.agreement.contract, 'validity.initial')),
-    );
-    task = await requestJson<Record<string, unknown>>(tasksUrl, {
+    if (tasks.length) return tasks;
+    return requestJson<Record<string, unknown>[]>(tasksUrl, {
         method: 'POST',
         headers: serviceHeaders(),
-        body: JSON.stringify({
-            script: 'generateStates',
-            inputArgs,
-            type: 'RECURRING',
-            enabled: true,
-            startDate: new Date(Math.max(Date.now(), validityInitial.getTime())).toISOString(),
-            endDate: String(readPath(payload.agreement.contract, 'validity.end')),
-            interval: 60 * 60 * 1_000,
-        }),
+        body: JSON.stringify({}),
     });
-    return task;
 };

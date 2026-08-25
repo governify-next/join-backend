@@ -36,7 +36,7 @@ export interface IOnboarding extends Document {
     failure?: { step: string; message: string; retryable: boolean; occurredAt: Date };
     leaseOwner?: string;
     leaseUntil?: Date;
-    expiresAt: Date;
+    expiresAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -56,7 +56,7 @@ const onboardingSchema = new Schema<IOnboarding>(
         failure: { type: Schema.Types.Mixed },
         leaseOwner: { type: String },
         leaseUntil: { type: Date },
-        expiresAt: { type: Date, required: true },
+        expiresAt: { type: Date },
     },
     { timestamps: true, minimize: false },
 );

@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
     title: Governify Join API
     version: 1.4.0
-    description: Declarative, resumable onboarding with a local template catalog and real ecosystem provisioning.
+    description: Declarative, resumable onboarding using Registry's public template catalog and real ecosystem provisioning.
 servers:
     - url: /api/v1
 components:
@@ -36,11 +36,11 @@ paths:
                 '503': { description: MongoDB is not connected }
     /agreement-templates:
         get:
-            summary: List local demo Agreement Templates and their onboarding definitions
+            summary: List supported public Registry Agreement Templates and their onboarding definitions
             security: [{ BearerAuth: [] }]
             responses:
                 '200':
-                    description: Template options with modules, requirements and declarative mappings
+                    description: Registry templates matched with Join modules, requirements and declarative mappings
     /onboardings:
         post:
             summary: Create an onboarding session
@@ -143,7 +143,7 @@ paths:
     /onboardings/{id}/provision:
         post:
             summary: Queue asynchronous ecosystem provisioning
-            description: Creates or reuses Guarantee and Agreement Templates, a Scope element, Agreement collection and version; the version receives one initial GitHub installation token plus its installation ID and expiration. Join then starts state generation and schedules hourly calculations; Fetcher owns later token renewal.
+            description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template, Scope, Agreement collection and version; and supplies one initial GitHub installation token with its installation ID and expiration. Join then starts state generation and schedules hourly calculations; Fetcher owns later token renewal.
             security: [{ BearerAuth: [] }]
             parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
             responses: { '202': { description: Provisioning queued } }

@@ -81,14 +81,14 @@ const buildSignatures = (
         const subject = signatureMapping.subject;
         if (!agreementGuarantees.has(signatureMapping.guaranteeTemplateName))
             throw new ValidationError(
-                `Mapped guarantee '${signatureMapping.guaranteeTemplateName}' is not in the agreement template`,
+                `Mapped guarantee '${signatureMapping.guaranteeTemplateName}' is not in the Agreement Template`,
             );
         const guaranteeTemplate = guaranteeTemplates.find(
             ({ name }) => name === signatureMapping.guaranteeTemplateName,
         );
         if (!guaranteeTemplate)
             throw new ValidationError(
-                `Guarantee template '${signatureMapping.guaranteeTemplateName}' is unavailable`,
+                `Guarantee Template '${signatureMapping.guaranteeTemplateName}' is unavailable`,
             );
         const repeatItems = subject.kind === 'member' ? answers[subject.answer] : [undefined];
         if (!Array.isArray(repeatItems) || !repeatItems.length)
@@ -104,7 +104,7 @@ const buildSignatures = (
             );
 
         return repeatItems.map((repeatItem) => ({
-            guaranteeName: signatureMapping.guaranteeTemplateName,
+            guaranteeTemplateName: signatureMapping.guaranteeTemplateName,
             metrics: signatureMapping.metrics.map((metricMapping) => {
                 const metric = guaranteeTemplate.metrics.find(
                     ({ metricName }) => metricName === metricMapping.metricName,
@@ -141,9 +141,7 @@ export const materialize = (
     guaranteeTemplates: GuaranteeTemplate[],
 ): MaterializedOnboarding => {
     const answers = onboarding.answers || {};
-    const contract: Record<string, unknown> = {
-        agreementTemplateName: onboarding.agreementTemplate.name,
-    };
+    const contract: Record<string, unknown> = {};
     for (const [path, binding] of Object.entries(
         onboarding.onboardingDefinition.mappings.contract,
     )) {
@@ -157,10 +155,12 @@ export const materialize = (
         signatures,
     };
     const scope: Record<string, unknown> = {
-        element: {
-            description: `Project onboarded from ${onboarding.agreementTemplate.displayName}`,
-            fields: [],
-            permissions: { view: [], edit: [], delete: [], create: [] },
+        description: `Project onboarded from ${onboarding.agreementTemplate.displayName}`,
+        type: 'Project',
+        parentId: null,
+        fields: [],
+        permissions: { view: [], edit: [], delete: [], create: [] },
+        config: {
             auditConfig: {
                 join: {
                     onboardingId: onboarding._id.toString(),
@@ -170,16 +170,15 @@ export const materialize = (
                     agreement,
                 },
             },
-            parts: [],
         },
     };
     for (const [path, binding] of Object.entries(onboarding.onboardingDefinition.mappings.scope)) {
         setPath(scope, path, resolveBinding(binding, answers, onboarding));
     }
-    const elementName = String(readPath(scope, 'element.name'));
+    const scopeName = String(readPath(scope, 'name'));
     scope.agreementCollection = {
-        name: `tpa-${elementName}`,
-        displayName: `TPA ${elementName}`,
+        name: `tpa-${scopeName}`,
+        displayName: `TPA ${scopeName}`,
         fields: {},
         permissions: {},
     };

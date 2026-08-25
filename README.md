@@ -1,20 +1,20 @@
 # Governify Join Backend
 
-Orchestrates declarative project onboarding into Governify. During this early stage, Join owns a local mock catalog for template discovery; completed onboardings are still provisioned through the real Scope Manager, Registry and Director APIs.
+Orchestrates declarative project onboarding into Governify. Join discovers public Agreement Templates directly from Registry and provisions completed onboardings through the real Scope Manager, Registry and Director APIs.
 
-Agreement and Guarantee Templates live in `src/data/agreementTemplates.ts`. Their separate, versioned onboarding contracts live in `src/data/onboardingDefinitions.ts`. A definition declares reusable modules, required inputs, dependency-aware option sources, and semantic mappings into the Agreement signatures and Scope payload.
+Agreement and Guarantee Template contents live in Registry. `src/data/onboardingDefinitions.ts` contains one self-contained onboarding factory per supported Registry Agreement Template and an explicit name-to-factory map. Each factory owns its integrations, wizard requirements, metric rules, project/member signatures, credential bindings and Scope mappings, while reading the actual Guarantee Templates from Registry.
 
 The Mongo worker only owns checkpoints and retries. `ecosystemPublisher.service.ts` is the downstream adapter for Registry, Scope Manager and Director, keeping publication replaceable without coupling it to the wizard contract.
 
-The demo catalog contains a basic GitHub agreement, an advanced GitHub Project/member agreement, and a combined GitHub + mocked ZenHub + Scope agreement. Removing guarantees and requirements changes the wizard without frontend changes.
+The currently supported catalog contains one definition for Registry's public `CS169L-Sp26` template, displayed as **TPA UCBerkeley CS169L Spring 2026**. Its complete demo catalog contains 11 guarantees and 15 unique metrics covering project/team and per-member practices. Join collects one GitHub repository, Project V2 workflow columns and members, then expands all member-scoped signatures for the selected collaborators. Other public Registry templates remain hidden until Join receives a matching onboarding definition.
 
 ## Responsibilities
 
 - Authenticate Governify users through the Authenticator `/me` contract.
 - Authorize GitHub once, discover existing GitHub App installations, install automatically when none is available, and enumerate repositories across every accessible installation.
 - Resolve the installation from the selected repository, then enumerate Projects V2 boards, status fields and collaborators.
-- Simulate ZenHub authorization, workspaces, pipelines, and users with deterministic mocks.
-- Persist resumable onboarding sessions and project associations.
+- Retain the mocked ZenHub adapter for future onboarding definitions without exposing it in the current Berkeley flow.
+- Persist resumable onboarding sessions, provisioning checkpoints and completed results; the same source may be onboarded more than once.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
 - Send the completed onboarding and Agreement copy to Scope Manager, create/reuse the Agreement collection and version in Registry, start an asynchronous state generation, and create an hourly Director task.
@@ -43,4 +43,4 @@ The GitHub App must request read access to repository metadata, issues, pull req
 - `npm run lint` — run ESLint
 - `npm run format:check` — verify formatting
 
-Fetcher must have the GitHub App credentials needed to replace the initial token after `tokenExpiresAt`. ZenHub resources and credentials remain demo mocks, so the hybrid example demonstrates materialization and orchestration but cannot fetch real ZenHub data yet.
+Fetcher must have the GitHub App credentials needed to replace the initial token after `tokenExpiresAt`. The retained ZenHub adapter still uses demo resources and credentials and is not part of the current Berkeley definition.

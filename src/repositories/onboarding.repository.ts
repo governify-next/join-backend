@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import Onboarding, { IOnboarding } from '../models/onboarding.model.js';
-import JoinedProject from '../models/joinedProject.model.js';
 import { bootEnv } from '../config/bootConfig.js';
-import { readPath } from '../services/requirement.service.js';
 
 export const createOnboarding = (data: Partial<IOnboarding>) =>
     Onboarding.create({
@@ -25,31 +23,5 @@ export const claimNext = async () => {
         },
         { leaseOwner: owner, leaseUntil: new Date(now.getTime() + bootEnv.WORKER_LEASE_MS) },
         { new: true, sort: { updatedAt: 1 } },
-    );
-};
-
-export const reserveJoinedProject = (onboarding: IOnboarding) => {
-    const answers = onboarding.answers || {};
-    const repository = answers.github_repository;
-    const organizationName = String(readPath(answers.scope_organization, 'name') || '');
-    const elementName = String(answers.scope_element_name || '');
-    const providerResourceId = String(
-        readPath(repository, 'id') || `${onboarding.agreementTemplate._id}:${onboarding.userId}`,
-    );
-    const provider = repository ? 'github' : onboarding.requiredIntegrations[0] || 'join';
-    return JoinedProject.findOneAndUpdate(
-        {
-            provider,
-            providerResourceId,
-            organizationName,
-        },
-        {
-            $setOnInsert: {
-                elementName,
-                onboardingId: onboarding._id,
-                installationId: onboarding.integrations?.github?.installationId,
-            },
-        },
-        { upsert: true, new: true },
     );
 };

@@ -112,7 +112,7 @@ export const resolveOptions = async (
         case 'scope.organizations': {
             const organizations = await organizationsForUser(user.username, user.id);
             return organizations.map((organization) => ({
-                id: organization.name,
+                id: String(organization._id),
                 label: String(organization.displayName || organization.name),
                 description: organization.description
                     ? String(organization.description)
@@ -183,7 +183,7 @@ export const resolveOptions = async (
                 String(args.repository || ''),
             );
             return collaborators.map((collaborator) => ({
-                id: collaborator.username,
+                id: collaborator.id,
                 label: collaborator.username,
                 value: collaborator,
             }));
@@ -207,7 +207,16 @@ export const resolveOptions = async (
     }
 };
 
-const serialized = (value: unknown) => JSON.stringify(value);
+const resourceIdentity = (value: unknown) => {
+    if (!isRecord(value)) return String(value);
+    if (value.installationId !== undefined && value.id !== undefined)
+        return `${String(value.installationId)}:${String(value.id)}`;
+    if (value._id !== undefined) return String(value._id);
+    if (value.id !== undefined) return String(value.id);
+    if (value.username !== undefined) return String(value.username);
+    if (value.name !== undefined) return String(value.name);
+    return JSON.stringify(value);
+};
 
 const validateValue = (requirement: RequirementDefinition, value: unknown) => {
     if (!requirement.required && (value === undefined || value === '')) return;
@@ -216,7 +225,7 @@ const validateValue = (requirement: RequirementDefinition, value: unknown) => {
             throw new ValidationError(`'${requirement.ui.label}' must be a list`);
         if (value.length < (requirement.validation?.minItems || 0))
             throw new ValidationError(`Select at least one value for '${requirement.ui.label}'`);
-        if (new Set(value.map(serialized)).size !== value.length)
+        if (new Set(value.map(resourceIdentity)).size !== value.length)
             throw new ValidationError(`'${requirement.ui.label}' contains duplicate values`);
         return;
     }
@@ -270,10 +279,15 @@ export const validateAnswers = async (
         validateValue(requirement, value);
         if (requirement.type !== 'resource' || value === undefined) continue;
         const options = await resolveOptions(onboarding, requirement, answers, user);
-        const allowed = new Set(options.map((option) => serialized(option.value)));
+        const optionsById = new Map(options.map((option) => [option.id, option]));
         const selected = requirement.cardinality === 'many' ? (value as unknown[]) : [value];
-        if (selected.some((item) => !allowed.has(serialized(item))))
+        const selectedOptions = selected.map((item) => optionsById.get(resourceIdentity(item)));
+        if (selectedOptions.some((option) => !option))
             throw new ValidationError(`'${requirement.ui.label}' contains an unavailable value`);
+        answers[requirement.id] =
+            requirement.cardinality === 'many'
+                ? selectedOptions.map((option) => option!.value)
+                : selectedOptions[0]!.value;
     }
 
     const timezone = answers.agreement_timezone;
@@ -287,6 +301,6 @@ export const validateAnswers = async (
         answers.github_in_review_columns,
         answers.github_done_columns,
     ].flatMap((value) => (Array.isArray(value) ? value : []));
-    if (new Set(statusOptions.map(serialized)).size !== statusOptions.length)
+    if (new Set(statusOptions.map(resourceIdentity)).size !== statusOptions.length)
         throw new ValidationError('A GitHub status option can only map to one workflow state');
 };

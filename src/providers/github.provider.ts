@@ -237,7 +237,7 @@ export const listProjects = async (
 
 export const listCollaborators = async (installationId: number, owner: string, repo: string) => {
     const { token } = await createInstallationToken(installationId);
-    const users: { login: string; avatar_url: string }[] = [];
+    const users: { id: number; login: string; avatar_url: string }[] = [];
     for (let page = 1; ; page += 1) {
         const pageUsers = await requestGitHub<typeof users>(
             `${bootEnv.GITHUB_API_URL}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/collaborators?per_page=100&page=${page}`,
@@ -246,5 +246,9 @@ export const listCollaborators = async (installationId: number, owner: string, r
         users.push(...pageUsers);
         if (pageUsers.length < 100) break;
     }
-    return users.map((user) => ({ username: user.login, avatarUrl: user.avatar_url }));
+    return users.map((user) => ({
+        id: String(user.id),
+        username: user.login,
+        avatarUrl: user.avatar_url,
+    }));
 };
