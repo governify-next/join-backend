@@ -1,5 +1,6 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 import type {
+    JoinLinkConfiguration,
     OnboardingAnswers,
     OnboardingDefinition,
     OnboardingStatus,
@@ -14,6 +15,8 @@ export interface IOnboarding extends Document {
     requiredIntegrations: IntegrationProvider[];
     agreementTemplate: PublicAgreementTemplate;
     onboardingDefinition: OnboardingDefinition;
+    joinLinkId?: Types.ObjectId;
+    joinLinkConfiguration?: JoinLinkConfiguration;
     status: OnboardingStatus;
     integrations?: {
         github?: {
@@ -48,6 +51,8 @@ const onboardingSchema = new Schema<IOnboarding>(
         requiredIntegrations: { type: [String], enum: ['github', 'zenhub'], default: [] },
         agreementTemplate: { type: Schema.Types.Mixed, required: true },
         onboardingDefinition: { type: Schema.Types.Mixed, required: true },
+        joinLinkId: { type: Schema.Types.ObjectId, ref: 'JoinLink', index: true },
+        joinLinkConfiguration: { type: Schema.Types.Mixed },
         status: { type: String, required: true, index: true },
         integrations: { type: Schema.Types.Mixed, default: {} },
         answers: { type: Schema.Types.Mixed, default: {} },

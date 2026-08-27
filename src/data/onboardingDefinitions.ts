@@ -108,6 +108,11 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
         'GitHub members',
         'Select the collaborators whose individual practices will be measured.',
     );
+    const memberDetailsStep = step(
+        40,
+        'Member details',
+        'Provide the contact details for each selected collaborator.',
+    );
     const destinationStep = step(
         50,
         'Governify destination',
@@ -184,6 +189,19 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             },
             validation: { minItems: 1 },
             ui: { ...membersStep, label: 'Tracked members', searchable: true },
+        }),
+        required({
+            id: 'github_member_details',
+            module: 'github',
+            type: 'member-details',
+            cardinality: 'many',
+            dependsOn: ['github_users'],
+            validation: { minItems: 1 },
+            ui: {
+                ...memberDetailsStep,
+                label: 'Member details',
+                help: 'First name, last name and e-mail address are required for every tracked member.',
+            },
         }),
         required({
             id: 'scope_organization',
@@ -285,7 +303,7 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
 
     return {
         schemaVersion: '1.0',
-        id: `${agreementTemplate.name}--github-project-v1`,
+        id: `${agreementTemplate.name}--github-project-v2`,
         agreementTemplateName: agreementTemplate.name,
         modules: [
             {
@@ -353,6 +371,9 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                 'config.auditConfig.join.trackedUsers': {
                     answer: 'github_users',
                     transform: 'pluckUsername',
+                },
+                'config.auditConfig.join.memberDetails': {
+                    answer: 'github_member_details',
                 },
             },
         },

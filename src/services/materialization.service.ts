@@ -164,6 +164,9 @@ export const materialize = (
             auditConfig: {
                 join: {
                     onboardingId: onboarding._id.toString(),
+                    ...(onboarding.joinLinkId
+                        ? { joinLinkId: onboarding.joinLinkId.toString() }
+                        : {}),
                     onboardingDefinitionId: onboarding.onboardingDefinition.id,
                     agreementTemplateId: onboarding.agreementTemplate._id,
                     answers,

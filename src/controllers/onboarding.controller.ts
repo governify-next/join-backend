@@ -19,21 +19,26 @@ export const agreementTemplates = (_req: Request, res: Response, next: NextFunct
 
 export const create = (req: Request, res: Response, next: NextFunction) =>
     handle(
-        () => onboardingService.create(req.userAuth!, req.body.agreementTemplateId),
+        () =>
+            onboardingService.create(
+                req.userAuth!,
+                req.body.agreementTemplateId,
+                req.body.joinLinkId,
+            ),
         res,
         next,
         201,
     );
 
 export const get = (req: Request, res: Response, next: NextFunction) =>
-    handle(() => onboardingService.getOwned(req.params.id, req.userAuth!.id), res, next);
+    handle(() => onboardingService.getOwned(req.params.id, req.userAuth!), res, next);
 
 export const connectIntegration = (req: Request, res: Response, next: NextFunction) =>
     handle(
         () =>
             onboardingService.connectIntegration(
                 req.params.id,
-                req.userAuth!.id,
+                req.userAuth!,
                 req.params.provider as IntegrationProvider,
             ),
         res,
@@ -120,7 +125,7 @@ export const saveAnswers = (req: Request, res: Response, next: NextFunction) =>
         () =>
             onboardingService.saveAnswers(
                 req.params.id,
-                req.userAuth!.id,
+                req.userAuth!,
                 req.body.answers as OnboardingAnswers,
             ),
         res,
@@ -128,9 +133,4 @@ export const saveAnswers = (req: Request, res: Response, next: NextFunction) =>
     );
 
 export const provision = (req: Request, res: Response, next: NextFunction) =>
-    handle(
-        () => onboardingService.queueProvisioning(req.params.id, req.userAuth!.id),
-        res,
-        next,
-        202,
-    );
+    handle(() => onboardingService.queueProvisioning(req.params.id, req.userAuth!), res, next, 202);

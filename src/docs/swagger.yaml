@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
     title: Governify Join API
-    version: 1.4.0
+    version: 1.5.0
     description: Declarative, resumable onboarding using Registry's public template catalog and real ecosystem provisioning.
 servers:
     - url: /api/v1
@@ -41,6 +41,67 @@ paths:
             responses:
                 '200':
                     description: Registry templates matched with Join modules, requirements and declarative mappings
+    /join-link-organizations:
+        get:
+            summary: List organizations where the current user can manage join links
+            description: Returns organizations administered by the current user. System superadministrators receive every organization.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Administrable organizations ordered by display name }
+    /organizations/{organizationName}/join-links:
+        parameters:
+            - in: path
+              name: organizationName
+              required: true
+              schema: { type: string }
+        get:
+            summary: List join links generated for an organization
+            description: Requires organization administrator permissions.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Join links ordered from newest to oldest }
+                '403': { description: Organization administrator permissions are required }
+        post:
+            summary: Generate an organization join link
+            description: Stores predefined values server-side and returns a MongoDB identifier for the URL.
+            security: [{ BearerAuth: [] }]
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [agreementTemplateId, agreementValidity, scopeName]
+                            properties:
+                                agreementTemplateId: { type: string }
+                                agreementValidity:
+                                    type: object
+                                    required: [initial, end, timezone]
+                                    properties:
+                                        initial: { type: string }
+                                        end: { type: string }
+                                        timezone: { type: string }
+                                scopeName: { type: string }
+                                editable:
+                                    type: object
+                                    properties:
+                                        organization: { type: boolean }
+                                        agreementTemplate: { type: boolean }
+                                        agreementValidity: { type: boolean }
+                                        scopeName: { type: boolean }
+            responses:
+                '201': { description: Join link configuration created }
+                '403': { description: Organization administrator permissions are required }
+    /join-links/{id}:
+        get:
+            summary: Resolve a join link configuration
+            description: The current user must be a member of the configured organization.
+            security: [{ BearerAuth: [] }]
+            parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+            responses:
+                '200': { description: Predefined values and editability flags }
+                '403': { description: The user is not a member of the configured organization }
+                '404': { description: Join link not found }
     /onboardings:
         post:
             summary: Create an onboarding session
@@ -51,12 +112,14 @@ paths:
                     application/json:
                         schema:
                             type: object
-                            required: [agreementTemplateId]
                             properties:
                                 agreementTemplateId: { type: string }
+                                joinLinkId:
+                                    type: string
+                                    description: MongoDB identifier of the join link used to create this onboarding.
             responses:
                 '201':
-                    description: Onboarding created from the selected template and definition
+                    description: Onboarding created with an optional validated join-link reference and configuration snapshot
     /onboardings/{id}:
         parameters:
             - in: path

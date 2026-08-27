@@ -37,6 +37,39 @@ export interface PublicAgreementTemplate {
     guarantees: AgreementTemplateGuarantee[];
 }
 
+export interface JoinLinkOrganization {
+    _id: string;
+    name: string;
+    displayName?: string;
+}
+
+export interface JoinLinkField<T> {
+    value: T;
+    editable: boolean;
+}
+
+export interface JoinLinkConfiguration {
+    organization: JoinLinkField<JoinLinkOrganization>;
+    agreementTemplate: JoinLinkField<PublicAgreementTemplate>;
+    agreementValidity: JoinLinkField<{
+        initial: string;
+        end: string;
+        timezone: string;
+    }>;
+    scopeName: JoinLinkField<string>;
+}
+
+export interface JoinLinkCreateInput {
+    agreementTemplateId: string;
+    agreementValidity: {
+        initial: string;
+        end: string;
+        timezone: string;
+    };
+    scopeName: string;
+    editable?: Partial<Record<keyof JoinLinkConfiguration, boolean>>;
+}
+
 export interface GuaranteeTemplate {
     _id: string;
     name: string;
@@ -95,7 +128,7 @@ export type RequirementOperation =
 export interface RequirementDefinition {
     id: string;
     module: ModuleId;
-    type: 'text' | 'datetime' | 'timezone' | 'resource';
+    type: 'text' | 'datetime' | 'timezone' | 'resource' | 'member-details';
     cardinality?: 'one' | 'many';
     required: boolean;
     requiredBy: RequirementConsumer[];

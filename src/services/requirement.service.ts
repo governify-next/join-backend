@@ -218,8 +218,38 @@ const resourceIdentity = (value: unknown) => {
     return JSON.stringify(value);
 };
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const validateMemberDetails = (requirement: RequirementDefinition, value: unknown) => {
+    if (!Array.isArray(value))
+        throw new ValidationError(`'${requirement.ui.label}' must be a list`);
+    if (value.length < (requirement.validation?.minItems || 0))
+        throw new ValidationError(`Complete '${requirement.ui.label}'`);
+
+    const usernames = new Set<string>();
+    for (const item of value) {
+        if (!isRecord(item))
+            throw new ValidationError(`'${requirement.ui.label}' contains an invalid member`);
+        const username = typeof item.username === 'string' ? item.username.trim() : '';
+        const firstName = typeof item.firstName === 'string' ? item.firstName.trim() : '';
+        const lastName = typeof item.lastName === 'string' ? item.lastName.trim() : '';
+        const email = typeof item.email === 'string' ? item.email.trim() : '';
+        if (!username || !firstName || !lastName || !emailPattern.test(email))
+            throw new ValidationError(
+                `Complete first name, last name and a valid e-mail address for every tracked member`,
+            );
+        if (usernames.has(username))
+            throw new ValidationError(`'${requirement.ui.label}' contains duplicate members`);
+        usernames.add(username);
+    }
+};
+
 const validateValue = (requirement: RequirementDefinition, value: unknown) => {
     if (!requirement.required && (value === undefined || value === '')) return;
+    if (requirement.type === 'member-details') {
+        validateMemberDetails(requirement, value);
+        return;
+    }
     if (requirement.cardinality === 'many') {
         if (!Array.isArray(value))
             throw new ValidationError(`'${requirement.ui.label}' must be a list`);
@@ -264,6 +294,24 @@ export const validatePartialAnswers = (onboarding: IOnboarding, answers: Onboard
         const requirement = requirements.get(id);
         if (!requirement) throw new ValidationError(`Unknown onboarding answer '${id}'`);
         validateValue(requirement, value);
+    }
+    for (const requirement of requirements.values()) {
+        if (requirement.type !== 'member-details' || answers[requirement.id] === undefined)
+            continue;
+        const selectedMembers = answers[requirement.dependsOn?.[0] || ''];
+        if (!Array.isArray(selectedMembers))
+            throw new ValidationError(`Select tracked members before completing member details`);
+        const selectedUsernames = selectedMembers.map((member) =>
+            String(readPath(member, 'username')),
+        );
+        const detailUsernames = (answers[requirement.id] as Record<string, unknown>[]).map(
+            (member) => String(member.username),
+        );
+        if (
+            selectedUsernames.length !== detailUsernames.length ||
+            selectedUsernames.some((username) => !detailUsernames.includes(username))
+        )
+            throw new ValidationError(`Provide member details for every selected member`);
     }
 };
 

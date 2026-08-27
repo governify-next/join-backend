@@ -17,6 +17,7 @@ import {
     validatePartialAnswers,
 } from './requirement.service.js';
 import { TOTAL_PROVISIONING_CHECKPOINTS } from './provisioning.service.js';
+import * as joinLinks from './joinLink.service.js';
 
 export const getAgreementTemplates = () => agreementTemplates.listPublic();
 
@@ -51,9 +52,21 @@ const selectRepositoryInstallation = (onboarding: IOnboarding, answers: Onboardi
     };
 };
 
-export const create = async (user: AuthenticatedUser, agreementTemplateId: string) => {
-    if (!agreementTemplateId) throw new ValidationError('Select an agreement template');
-    const option = await agreementTemplates.getPublic(agreementTemplateId);
+export const create = async (
+    user: AuthenticatedUser,
+    agreementTemplateId: string,
+    joinLinkId?: string,
+) => {
+    const resolvedLink = joinLinkId
+        ? await joinLinks.resolveForOnboarding(joinLinkId, user)
+        : undefined;
+    const selectedTemplateId =
+        agreementTemplateId ||
+        String(resolvedLink?.configuration.agreementTemplate.value._id || '');
+    if (!selectedTemplateId) throw new ValidationError('Select an agreement template');
+    if (resolvedLink)
+        joinLinks.validateAgreementTemplate(resolvedLink.configuration, selectedTemplateId);
+    const option = await agreementTemplates.getPublic(selectedTemplateId);
     const required = option.onboardingDefinition.modules
         .filter((module) => module.kind === 'external')
         .map((module) => module.id)
@@ -64,27 +77,31 @@ export const create = async (user: AuthenticatedUser, agreementTemplateId: strin
         requiredIntegrations: required,
         agreementTemplate: option.agreementTemplate,
         onboardingDefinition: option.onboardingDefinition,
-        answers: {},
+        joinLinkId: resolvedLink ? new mongoose.Types.ObjectId(resolvedLink.id) : undefined,
+        joinLinkConfiguration: resolvedLink?.configuration,
+        answers: resolvedLink ? joinLinks.initialAnswers(resolvedLink.configuration) : {},
     });
 };
 
-export const getOwned = async (id: string, userId: string) => {
+export const getOwned = async (id: string, user: AuthenticatedUser) => {
     if (!mongoose.isValidObjectId(id)) throw new ValidationError('Invalid onboarding ID');
-    const onboarding = await onboardingRepository.findOwned(id, userId);
+    const onboarding = await onboardingRepository.findOwned(id, user.id);
     if (!onboarding) throw new NotFoundError('Onboarding not found');
     if (!onboarding.onboardingDefinition)
         throw new ValidationError(
             'This onboarding uses an obsolete format. Start a new onboarding.',
         );
+    if (onboarding.joinLinkConfiguration)
+        await joinLinks.assertConfigurationMember(onboarding.joinLinkConfiguration, user);
     return onboarding;
 };
 
 export const connectIntegration = async (
     id: string,
-    userId: string,
+    user: AuthenticatedUser,
     provider: IntegrationProvider,
 ) => {
-    const onboarding = await getOwned(id, userId);
+    const onboarding = await getOwned(id, user);
     if (!requiredIntegrations(onboarding).includes(provider))
         throw new ValidationError(`${provider} is not required by this agreement template`);
     if (onboarding.status === 'COMPLETED' || onboarding.status === 'PROVISIONING')
@@ -127,6 +144,11 @@ export const completeGitHubAuthorization = async (params: {
     const onboarding = await onboardingRepository.findById(state.onboardingId);
     if (!onboarding || onboarding.userId !== state.userId)
         throw new ForbiddenError('GitHub authorization does not match an onboarding session');
+    if (onboarding.joinLinkConfiguration)
+        await joinLinks.assertConfigurationMember(onboarding.joinLinkConfiguration, {
+            id: onboarding.userId,
+            username: onboarding.username,
+        });
     const nonceHash = createHash('sha256').update(state.nonce).digest('hex');
     if (
         onboarding.integrations?.github?.stateNonce !== nonceHash ||
@@ -179,17 +201,22 @@ export const requirementOptions = async (
     requirementId: string,
     proposedAnswers: OnboardingAnswers,
 ) => {
-    const onboarding = await getOwned(id, user.id);
+    const onboarding = await getOwned(id, user);
     const requirement = onboarding.onboardingDefinition.requirements.find(
         ({ id: candidateId }) => candidateId === requirementId,
     );
     if (!requirement) throw new NotFoundError('Onboarding requirement not found');
     const answers = { ...(onboarding.answers || {}), ...(proposedAnswers || {}) };
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, answers);
     return resolveOptions(onboarding, requirement, answers, user);
 };
 
-export const saveAnswers = async (id: string, userId: string, answers: OnboardingAnswers) => {
-    const onboarding = await getOwned(id, userId);
+export const saveAnswers = async (
+    id: string,
+    user: AuthenticatedUser,
+    answers: OnboardingAnswers,
+) => {
+    const onboarding = await getOwned(id, user);
     if (!answers || typeof answers !== 'object' || Array.isArray(answers))
         throw new ValidationError('Onboarding answers are required');
     if (onboarding.status === 'PROVISIONING' || onboarding.status === 'COMPLETED')
@@ -198,6 +225,7 @@ export const saveAnswers = async (id: string, userId: string, answers: Onboardin
         throw new ValidationError(
             'Provisioning already created resources; retry without changing the configuration',
         );
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, answers);
     validatePartialAnswers(onboarding, answers);
     selectRepositoryInstallation(onboarding, answers);
     onboarding.answers = answers;
@@ -212,7 +240,7 @@ export const configure = async (
     user: AuthenticatedUser,
     answers: OnboardingAnswers,
 ) => {
-    const onboarding = await getOwned(id, user.id);
+    const onboarding = await getOwned(id, user);
     if (!answers || typeof answers !== 'object' || Array.isArray(answers))
         throw new ValidationError('Onboarding answers are required');
     const missingIntegrations = requiredIntegrations(onboarding).filter(
@@ -229,6 +257,7 @@ export const configure = async (
             'Provisioning already created resources; retry without changing the configuration',
         );
 
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, answers);
     await validateAnswers(onboarding, answers, user);
     selectRepositoryInstallation(onboarding, answers);
     onboarding.answers = answers;
@@ -238,10 +267,11 @@ export const configure = async (
     return onboarding;
 };
 
-export const queueProvisioning = async (id: string, userId: string) => {
-    const onboarding = await getOwned(id, userId);
+export const queueProvisioning = async (id: string, user: AuthenticatedUser) => {
+    const onboarding = await getOwned(id, user);
     if (!onboarding.answers || !Object.keys(onboarding.answers).length)
         throw new ValidationError('Complete configuration first');
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, onboarding.answers);
     if (onboarding.status === 'COMPLETED') return onboarding;
     if (!['READY', 'FAILED'].includes(onboarding.status))
         throw new ValidationError('Onboarding is not ready for provisioning');
