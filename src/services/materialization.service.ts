@@ -180,8 +180,8 @@ export const materialize = (
     }
     const scopeName = String(readPath(scope, 'name'));
     scope.agreementCollection = {
-        name: `tpa-${scopeName}`,
-        displayName: `TPA ${scopeName}`,
+        name: scopeName,
+        displayName: scopeName,
         fields: {},
         permissions: {},
     };
