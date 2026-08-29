@@ -183,17 +183,13 @@ export const ensureAgreementCollection = async (
     const collection = readPath(payload.scope, 'agreementCollection');
     if (!isRecord(collection))
         throw new ValidationError('Materialized agreement collection is invalid');
-    // Registry currently validates the collection name as an ObjectId during creation.
-    // Keep the user-facing label while using the Scope ID as its temporary technical name.
-    const registryCollectionName = scopeId;
     const input: Record<string, unknown> = {
         ...collection,
-        name: registryCollectionName,
         description:
             collection.description ||
             `Agreement collection for ${String(readPath(payload.scope, 'name'))}`,
     };
-    const collectionName = registryCollectionName;
+    const collectionName = String(input.name);
     const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections`;
     const reuse = (existing: Record<string, unknown>) => {
         if (
