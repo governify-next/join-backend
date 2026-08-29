@@ -57,15 +57,12 @@ export const create = async (
     agreementTemplateId: string,
     joinLinkId?: string,
 ) => {
-    const resolvedLink = joinLinkId
-        ? await joinLinks.resolveForOnboarding(joinLinkId, user)
-        : undefined;
+    if (!joinLinkId) throw new ValidationError('A join link is required to create an onboarding');
+    const resolvedLink = await joinLinks.resolveForOnboarding(joinLinkId, user);
     const selectedTemplateId =
-        agreementTemplateId ||
-        String(resolvedLink?.configuration.agreementTemplate.value._id || '');
+        agreementTemplateId || String(resolvedLink.configuration.agreementTemplate.value._id || '');
     if (!selectedTemplateId) throw new ValidationError('Select an agreement template');
-    if (resolvedLink)
-        joinLinks.validateAgreementTemplate(resolvedLink.configuration, selectedTemplateId);
+    joinLinks.validateAgreementTemplate(resolvedLink.configuration, selectedTemplateId);
     const option = await agreementTemplates.getPublic(selectedTemplateId);
     const required = option.onboardingDefinition.modules
         .filter((module) => module.kind === 'external')
@@ -77,9 +74,9 @@ export const create = async (
         requiredIntegrations: required,
         agreementTemplate: option.agreementTemplate,
         onboardingDefinition: option.onboardingDefinition,
-        joinLinkId: resolvedLink ? new mongoose.Types.ObjectId(resolvedLink.id) : undefined,
-        joinLinkConfiguration: resolvedLink?.configuration,
-        answers: resolvedLink ? joinLinks.initialAnswers(resolvedLink.configuration) : {},
+        joinLinkId: new mongoose.Types.ObjectId(resolvedLink.id),
+        joinLinkConfiguration: resolvedLink.configuration,
+        answers: joinLinks.initialAnswers(resolvedLink.configuration),
     });
 };
 

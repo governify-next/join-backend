@@ -112,14 +112,16 @@ paths:
                     application/json:
                         schema:
                             type: object
+                            required: [joinLinkId]
                             properties:
                                 agreementTemplateId: { type: string }
                                 joinLinkId:
                                     type: string
-                                    description: MongoDB identifier of the join link used to create this onboarding.
+                                    description: Required MongoDB identifier of the join link used to create this onboarding.
             responses:
                 '201':
-                    description: Onboarding created with an optional validated join-link reference and configuration snapshot
+                    description: Onboarding created with a validated join-link reference and configuration snapshot
+                '400': { description: A join link is required }
     /onboardings/{id}:
         parameters:
             - in: path
