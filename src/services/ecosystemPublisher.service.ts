@@ -324,3 +324,17 @@ export const ensureCalculationSchedule = async (
         body: JSON.stringify({}),
     });
 };
+
+export const ensureDashboard = async (
+    organizationName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementVersion: number,
+) =>
+    requestJson<Record<string, unknown>>(
+        `${bootEnv.REPORTER_SERVICE_URL}/api/v1/dashboards/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}`,
+        {
+            method: 'POST',
+            headers: serviceHeaders(),
+        },
+    );

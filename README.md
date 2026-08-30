@@ -1,6 +1,6 @@
 # Governify Join Backend
 
-Orchestrates declarative project onboarding into Governify. Join discovers public Agreement Templates directly from Registry and provisions completed onboardings through the real Scope Manager, Registry and Director APIs.
+Orchestrates declarative project onboarding into Governify. Join discovers public Agreement Templates directly from Registry and provisions completed onboardings through the real Scope Manager, Registry, Reporter and Director APIs.
 
 Agreement and Guarantee Template contents live in Registry. `src/data/onboardingDefinitions.ts` contains one self-contained onboarding factory per supported Registry Agreement Template and an explicit name-to-factory map. Each factory owns its integrations, wizard requirements, metric rules, project/member signatures, credential bindings and Scope mappings, while reading the actual Guarantee Templates from Registry.
 
@@ -18,6 +18,7 @@ The currently supported catalog contains one definition for Registry's public `C
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
 - Send the completed onboarding and Agreement copy to Scope Manager, create/reuse the Agreement collection and version in Registry, start an asynchronous state generation, and create an hourly Director task.
+- Create or update the Reporter dashboard for the published Agreement Version.
 - Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
 - Mint one initial GitHub installation token while creating the Agreement version.
 

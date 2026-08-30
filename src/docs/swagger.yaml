@@ -208,7 +208,7 @@ paths:
     /onboardings/{id}/provision:
         post:
             summary: Queue asynchronous ecosystem provisioning
-            description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template, Scope, Agreement collection and version; and supplies one initial GitHub installation token with its installation ID and expiration. Join then starts state generation and schedules hourly calculations; Fetcher owns later token renewal.
+            description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template, Scope, Agreement collection and version; and supplies one initial GitHub installation token with its installation ID and expiration. Join then starts state generation, schedules hourly calculations and creates or updates the Reporter dashboard; Fetcher owns later token renewal.
             security: [{ BearerAuth: [] }]
             parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
             responses: { '202': { description: Provisioning queued } }

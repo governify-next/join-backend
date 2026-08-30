@@ -15,6 +15,7 @@ export const bootEnv = {
     AUTHENTICATOR_SERVICE_URL: process.env.AUTHENTICATOR_SERVICE_URL || 'http://localhost:5900',
     SCOPE_MANAGER_SERVICE_URL: process.env.SCOPE_MANAGER_SERVICE_URL || 'http://localhost:5901',
     REGISTRY_SERVICE_URL: process.env.REGISTRY_SERVICE_URL || 'http://localhost:5902',
+    REPORTER_SERVICE_URL: process.env.REPORTER_SERVICE_URL || 'http://localhost:5905',
     DIRECTOR_SERVICE_URL: process.env.DIRECTOR_SERVICE_URL || 'http://localhost:5906',
     CLIENT_ID: process.env.CLIENT_ID || 'join-backend',
     CLIENT_SECRET: process.env.CLIENT_SECRET || 'join_backend_client_secret',
