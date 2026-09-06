@@ -9,6 +9,7 @@ import type {
 } from '../types/onboarding.js';
 import { NotFoundError, ValidationError } from '../utils/customErrors.js';
 import { localDateTimeInZoneToIso } from '../utils/date.js';
+import { defaultResultOptions, normalizeResultOptions } from '../utils/onboardingResult.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import {
     organizationsAdministeredBy,
@@ -51,6 +52,18 @@ const validateInput = (input: JoinLinkCreateInput) => {
     if (!input || typeof input !== 'object')
         throw new ValidationError('Join link configuration is required');
     if (!input.agreementTemplateId) throw new ValidationError('Select an agreement template');
+    if (
+        input.resultOptions !== undefined &&
+        (typeof input.resultOptions !== 'object' ||
+            input.resultOptions === null ||
+            Array.isArray(input.resultOptions) ||
+            Object.keys(defaultResultOptions).some(
+                (option) =>
+                    typeof input.resultOptions?.[option as keyof typeof defaultResultOptions] !==
+                    'boolean',
+            ))
+    )
+        throw new ValidationError('Result options must explicitly enable or disable every output');
     if (typeof input.scopeNameFromRepository !== 'boolean')
         throw new ValidationError('Automatic Scope naming must be enabled or disabled');
     if (input.scopeNameFromRepository && input.scopeName !== undefined)
@@ -122,6 +135,7 @@ export const create = async (
                 editable: editable.scopeName === true,
                 fromRepository: input.scopeNameFromRepository === true,
             },
+            resultOptions: normalizeResultOptions(input.resultOptions),
         },
     });
 };

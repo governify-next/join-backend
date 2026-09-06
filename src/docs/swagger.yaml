@@ -111,6 +111,14 @@ paths:
                                         agreementTemplate: { type: boolean }
                                         agreementValidity: { type: boolean }
                                         scopeName: { type: boolean }
+                                resultOptions:
+                                    type: object
+                                    description: Controls which completed result data the onboarding API may return. All outputs default to enabled when omitted for compatibility with existing clients.
+                                    required: [dashboardURL, organizationURL, scopeAndAgreement]
+                                    properties:
+                                        dashboardURL: { type: boolean }
+                                        organizationURL: { type: boolean }
+                                        scopeAndAgreement: { type: boolean }
             responses:
                 '201': { description: Join link configuration created }
                 '403': { description: Organization administrator permissions are required }
@@ -155,6 +163,7 @@ paths:
               schema: { type: string }
         get:
             summary: Get an owned onboarding session
+            description: Of the completed outputs, the result includes only the dashboard URL, organization URL and Scope/Agreement data enabled by the join-link result options. Progress metadata remains available while internal provisioning data is never returned.
             security: [{ BearerAuth: [] }]
             responses:
                 '200': { description: Current session state }

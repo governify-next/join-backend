@@ -12,6 +12,7 @@ export const bootEnv = {
     PORT: process.env.PORT || '5907',
     MONGO_URI: process.env.MONGO_URI || 'mongodb://localhost:27017/governify-next',
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+    GOVERNIFY_FRONTEND_URL: process.env.GOVERNIFY_FRONTEND_URL || 'https://next.governify.io',
     AUTHENTICATOR_SERVICE_URL: process.env.AUTHENTICATOR_SERVICE_URL || 'http://localhost:5900',
     SCOPE_MANAGER_SERVICE_URL: process.env.SCOPE_MANAGER_SERVICE_URL || 'http://localhost:5901',
     REGISTRY_SERVICE_URL: process.env.REGISTRY_SERVICE_URL || 'http://localhost:5902',

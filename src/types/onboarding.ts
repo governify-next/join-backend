@@ -48,6 +48,12 @@ export interface JoinLinkField<T> {
     editable: boolean;
 }
 
+export interface JoinLinkResultOptions {
+    dashboardURL: boolean;
+    organizationURL: boolean;
+    scopeAndAgreement: boolean;
+}
+
 export interface JoinLinkConfiguration {
     organization: JoinLinkField<JoinLinkOrganization>;
     agreementTemplate: JoinLinkField<PublicAgreementTemplate>;
@@ -59,6 +65,7 @@ export interface JoinLinkConfiguration {
     scopeName: JoinLinkField<string> & {
         fromRepository: boolean;
     };
+    resultOptions: JoinLinkResultOptions;
 }
 
 interface JoinLinkCreateInputBase {
@@ -68,7 +75,10 @@ interface JoinLinkCreateInputBase {
         end: string;
         timezone: string;
     };
-    editable?: Partial<Record<keyof JoinLinkConfiguration, boolean>>;
+    editable?: Partial<
+        Record<'organization' | 'agreementTemplate' | 'agreementValidity' | 'scopeName', boolean>
+    >;
+    resultOptions?: JoinLinkResultOptions;
 }
 
 export type JoinLinkCreateInput = JoinLinkCreateInputBase &

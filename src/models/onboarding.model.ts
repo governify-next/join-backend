@@ -8,6 +8,8 @@ import type {
     PublicAgreementTemplate,
 } from '../types/onboarding.js';
 import type { GitHubInstallation } from '../providers/provider.types.js';
+import { bootEnv } from '../config/bootConfig.js';
+import { buildClientOnboardingResult } from '../utils/onboardingResult.js';
 
 export interface IOnboarding extends Document {
     userId: string;
@@ -63,7 +65,22 @@ const onboardingSchema = new Schema<IOnboarding>(
         leaseUntil: { type: Date },
         expiresAt: { type: Date },
     },
-    { timestamps: true, minimize: false },
+    {
+        timestamps: true,
+        minimize: false,
+        toJSON: {
+            transform: (_document, serialized) => {
+                if (serialized.result && typeof serialized.result === 'object')
+                    serialized.result = buildClientOnboardingResult({
+                        result: serialized.result as Record<string, unknown>,
+                        configuration: serialized.joinLinkConfiguration,
+                        answers: serialized.answers,
+                        governifyFrontendURL: bootEnv.GOVERNIFY_FRONTEND_URL,
+                    });
+                return serialized;
+            },
+        },
+    },
 );
 
 onboardingSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
