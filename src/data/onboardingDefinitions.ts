@@ -218,7 +218,7 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             validation: { minLength: 3, maxLength: 96, pattern: '^[A-Za-z0-9_-]+$' },
             ui: {
                 ...destinationStep,
-                label: 'Scope name',
+                label: 'Scope and agreement name',
                 help: 'Letters, numbers, underscores and hyphens only.',
             },
         }),

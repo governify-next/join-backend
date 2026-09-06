@@ -55,7 +55,7 @@ const validateInput = (input: JoinLinkCreateInput) => {
         throw new ValidationError('Automatic Scope naming must be enabled or disabled');
     if (input.scopeNameFromRepository && input.scopeName !== undefined)
         throw new ValidationError(
-            'Provide either a Scope name or automatic repository naming, not both',
+            'Provide either a Scope and agreement name or automatic repository naming, not both',
         );
     if (
         !input.scopeNameFromRepository &&
@@ -65,7 +65,7 @@ const validateInput = (input: JoinLinkCreateInput) => {
             !scopeNamePattern.test(input.scopeName))
     )
         throw new ValidationError(
-            'Enter a Scope name or use the enrolled repository name automatically',
+            'Enter a Scope and agreement name or use the enrolled repository name automatically',
         );
 
     const { initial, end, timezone } = input.agreementValidity || {};
@@ -192,12 +192,14 @@ export const validateLockedAnswers = (
                 ? answers.scope_name !== expectedScopeName
                 : answers.scope_name !== undefined
         )
-            throw new ValidationError('The Scope name must match the enrolled repository name');
+            throw new ValidationError(
+                'The Scope and agreement name must match the enrolled repository name',
+            );
     } else if (
         !configuration.scopeName.editable &&
         answers.scope_name !== configuration.scopeName.value
     )
-        throw new ValidationError('The Scope name is locked by the join link');
+        throw new ValidationError('The Scope and agreement name is locked by the join link');
     if (!configuration.agreementValidity.editable) {
         const validity = configuration.agreementValidity.value;
         if (

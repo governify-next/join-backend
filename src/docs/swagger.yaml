@@ -103,7 +103,7 @@ paths:
                                     pattern: '^[A-Za-z0-9_-]+$'
                                 scopeNameFromRepository:
                                     type: boolean
-                                    description: Derive the Scope name from the repository selected during onboarding. Supported only by agreements that enroll a GitHub repository.
+                                    description: Derive the Scope and agreement name from the repository selected during onboarding. Supported only by agreements that enroll a GitHub repository.
                                 editable:
                                     type: object
                                     properties:
