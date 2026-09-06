@@ -347,6 +347,10 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             scope: {
                 organizationId: { answer: 'scope_organization', path: '_id' },
                 name: { answer: 'scope_name' },
+                type: { literal: 'Repositories' },
+                'config.owner': { answer: 'github_repository', path: 'owner' },
+                'config.repository': { answer: 'github_repository', path: 'name' },
+                'config.credentialRef': { integration: 'github' },
                 'config.auditConfig.join.provider': { literal: 'join' },
                 'config.auditConfig.join.repository': {
                     answer: 'github_repository',
@@ -376,6 +380,19 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                     answer: 'github_member_details',
                 },
             },
+            scopeChildren: [
+                {
+                    answer: 'github_member_details',
+                    fields: {
+                        name: { repeatItem: 'username' },
+                        type: { literal: 'Members' },
+                        'config.username': { repeatItem: 'username' },
+                        'config.firstName': { repeatItem: 'firstName' },
+                        'config.lastName': { repeatItem: 'lastName' },
+                        'config.email': { repeatItem: 'email' },
+                    },
+                },
+            ],
         },
     };
 };

@@ -1,5 +1,5 @@
 import { bootEnv } from '../config/bootConfig.js';
-import type { MaterializedOnboarding } from '../types/onboarding.js';
+import type { MaterializedOnboarding, ScopeNodeInput } from '../types/onboarding.js';
 import { DuplicateKeyError, ValidationError } from '../utils/customErrors.js';
 import { requestJson } from '../utils/http.js';
 import { serviceHeaders } from '../utils/serviceAuthentication.js';
@@ -73,6 +73,39 @@ const sameValidity = (left: Record<string, unknown> | undefined, right: Record<s
     new Date(String(left?.initial)).getTime() === new Date(String(right.initial)).getTime() &&
     new Date(String(left?.end)).getTime() === new Date(String(right.end)).getTime();
 
+const scopeNodeInput = (scope: Record<string, unknown>): ScopeNodeInput => {
+    if (typeof scope.name !== 'string' || !scope.name)
+        throw new ValidationError('Materialized Scope is missing its name');
+    if (typeof scope.type !== 'string' || !scope.type)
+        throw new ValidationError('Materialized Scope is missing its type');
+    if (!isRecord(scope.config) || !Array.isArray(scope.children))
+        throw new ValidationError(
+            'Materialized Scope must have a config object and children array',
+        );
+    return {
+        name: scope.name,
+        ...(typeof scope.description === 'string' ? { description: scope.description } : {}),
+        type: scope.type,
+        config: scope.config,
+        children: scope.children.map((child) => {
+            if (!isRecord(child)) throw new ValidationError('Materialized Scope child is invalid');
+            return scopeNodeInput(child);
+        }),
+    };
+};
+
+const scopeNodeIdentity = (scope: {
+    name?: unknown;
+    description?: unknown;
+    type?: unknown;
+    config?: unknown;
+}) => ({
+    name: scope.name,
+    description: scope.description,
+    type: scope.type,
+    config: scope.config,
+});
+
 export const ensureAgreementTemplate = async (
     organizationName: string,
     organizationId: string,
@@ -129,7 +162,6 @@ export const ensureAgreementTemplate = async (
 export const ensureScope = async (
     onboardingId: string,
     organizationName: string,
-    scopeId: string,
     createdBy: string,
     payload: MaterializedOnboarding,
 ) => {
@@ -138,38 +170,50 @@ export const ensureScope = async (
     if (!scopeName) throw new ValidationError('Materialized Scope is missing its name');
 
     const collectionUrl = `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes`;
-    const resourceUrl = `${collectionUrl}/${encodeURIComponent(scopeId)}`;
+    const root = scopeNodeInput(scope);
+    if (readPath(root, 'config.auditConfig.join.onboardingId') !== onboardingId)
+        throw new ValidationError('Materialized Scope has an invalid onboarding audit ID');
+
     const reuse = (existing: Record<string, unknown>) => {
-        if (readPath(existing, 'config.auditConfig.join.onboardingId') !== onboardingId)
-            throw new DuplicateKeyError(`Scope '${scopeId}' already belongs to another join`);
+        if (
+            existing.parentId !== null ||
+            !matchesExpected(scopeNodeIdentity(existing), scopeNodeIdentity(root))
+        )
+            throw new DuplicateKeyError(
+                `Scope '${scopeName}' already exists with different contents`,
+            );
         return resourceId(existing, `Scope '${scopeName}'`);
     };
+    const findExisting = async () => {
+        const scopes = await requestJson<Record<string, unknown>[]>(`${collectionUrl}?flat=true`, {
+            headers: serviceHeaders(),
+        });
+        return scopes.find(
+            (candidate) =>
+                candidate.parentId === null &&
+                readPath(candidate, 'config.auditConfig.join.onboardingId') === onboardingId,
+        );
+    };
 
-    const existing = await requestIfExists<Record<string, unknown>>(resourceUrl);
+    const existing = await findExisting();
     if (existing) return reuse(existing);
 
     try {
-        const created = await requestJson<Record<string, unknown>>(collectionUrl, {
+        const created = await requestJson<Record<string, unknown>[]>(`${collectionUrl}/tree`, {
             method: 'POST',
-            headers: serviceHeaders(),
-            body: JSON.stringify({
-                _id: scopeId,
-                name: scopeName,
-                description: scope.description,
-                type: scope.type || 'Project',
-                parentId: scope.parentId ?? null,
-                fields: Array.isArray(scope.fields) ? scope.fields : [],
-                permissions: isRecord(scope.permissions)
-                    ? scope.permissions
-                    : { view: [], edit: [], delete: [], create: [] },
-                config: isRecord(scope.config) ? scope.config : {},
-                createdBy,
-            }),
+            headers: { ...serviceHeaders(), 'X-Created-By': createdBy },
+            body: JSON.stringify([root]),
         });
-        return resourceId(created, `Scope '${scopeName}'`);
+        const createdRoot = created.find(
+            (candidate) =>
+                candidate.parentId === null &&
+                readPath(candidate, 'config.auditConfig.join.onboardingId') === onboardingId,
+        );
+        if (!createdRoot)
+            throw new ValidationError('Scope Manager did not return the created root scope');
+        return reuse(createdRoot);
     } catch (error) {
-        const createdByConcurrentAttempt =
-            await requestIfExists<Record<string, unknown>>(resourceUrl);
+        const createdByConcurrentAttempt = await findExisting();
         if (createdByConcurrentAttempt) return reuse(createdByConcurrentAttempt);
         throw error;
     }
