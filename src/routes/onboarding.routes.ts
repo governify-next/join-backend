@@ -6,6 +6,7 @@ import { requireUser } from '../middlewares/userAuthentication.js';
 export const onboardingRoutes = Router();
 
 onboardingRoutes.get('/agreement-templates', requireUser, controller.agreementTemplates);
+onboardingRoutes.get('/organization-options', requireUser, controller.organizationOptions);
 onboardingRoutes.get('/join-link-organizations', requireUser, joinLinkController.organizations);
 onboardingRoutes.get(
     '/organizations/:organizationName/join-links',

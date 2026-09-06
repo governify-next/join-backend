@@ -41,6 +41,12 @@ paths:
             responses:
                 '200':
                     description: Registry templates matched with Join modules, requirements and declarative mappings
+    /organization-options:
+        get:
+            summary: List organizations available as onboarding destinations
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Organizations where the current user is a member }
     /join-link-organizations:
         get:
             summary: List organizations where the current user can manage join links
@@ -71,7 +77,16 @@ paths:
                     application/json:
                         schema:
                             type: object
-                            required: [agreementTemplateId, agreementValidity, scopeName]
+                            required:
+                                [agreementTemplateId, agreementValidity, scopeNameFromRepository]
+                            oneOf:
+                                - required: [scopeName]
+                                  properties:
+                                      scopeNameFromRepository: { type: boolean, enum: [false] }
+                                - properties:
+                                      scopeNameFromRepository: { type: boolean, enum: [true] }
+                                  not:
+                                      required: [scopeName]
                             properties:
                                 agreementTemplateId: { type: string }
                                 agreementValidity:
@@ -81,7 +96,14 @@ paths:
                                         initial: { type: string }
                                         end: { type: string }
                                         timezone: { type: string }
-                                scopeName: { type: string }
+                                scopeName:
+                                    type: string
+                                    minLength: 3
+                                    maxLength: 96
+                                    pattern: '^[A-Za-z0-9_-]+$'
+                                scopeNameFromRepository:
+                                    type: boolean
+                                    description: Derive the Scope name from the repository selected during onboarding. Supported only by agreements that enroll a GitHub repository.
                                 editable:
                                     type: object
                                     properties:
@@ -118,6 +140,9 @@ paths:
                                 joinLinkId:
                                     type: string
                                     description: Required MongoDB identifier of the join link used to create this onboarding.
+                                answers:
+                                    type: object
+                                    description: Initial editable answers collected before the agreement is selected.
             responses:
                 '201':
                     description: Onboarding created with a validated join-link reference and configuration snapshot

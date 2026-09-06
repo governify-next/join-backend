@@ -11,6 +11,7 @@ import type {
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/customErrors.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import {
+    organizationOptions,
     readPath,
     resolveOptions,
     validateAnswers,
@@ -20,6 +21,8 @@ import { TOTAL_PROVISIONING_CHECKPOINTS } from './provisioning.service.js';
 import * as joinLinks from './joinLink.service.js';
 
 export const getAgreementTemplates = () => agreementTemplates.listPublic();
+
+export const getOrganizationOptions = (user: AuthenticatedUser) => organizationOptions(user);
 
 const requiredIntegrations = (onboarding: IOnboarding) => onboarding.requiredIntegrations || [];
 
@@ -56,6 +59,7 @@ export const create = async (
     user: AuthenticatedUser,
     agreementTemplateId: string,
     joinLinkId?: string,
+    initialAnswers: OnboardingAnswers = {},
 ) => {
     if (!joinLinkId) throw new ValidationError('A join link is required to create an onboarding');
     const resolvedLink = await joinLinks.resolveForOnboarding(joinLinkId, user);
@@ -68,6 +72,12 @@ export const create = async (
         .filter((module) => module.kind === 'external')
         .map((module) => module.id)
         .filter((id): id is IntegrationProvider => id === 'github' || id === 'zenhub');
+    const answers = joinLinks.applyDerivedAnswers(resolvedLink.configuration, {
+        ...joinLinks.initialAnswers(resolvedLink.configuration),
+        ...initialAnswers,
+    });
+    joinLinks.validateLockedAnswers(resolvedLink.configuration, answers);
+    validatePartialAnswers({ onboardingDefinition: option.onboardingDefinition }, answers);
     return onboardingRepository.createOnboarding({
         userId: user.id,
         username: user.username,
@@ -76,7 +86,7 @@ export const create = async (
         onboardingDefinition: option.onboardingDefinition,
         joinLinkId: new mongoose.Types.ObjectId(resolvedLink.id),
         joinLinkConfiguration: resolvedLink.configuration,
-        answers: joinLinks.initialAnswers(resolvedLink.configuration),
+        answers,
     });
 };
 
@@ -203,7 +213,10 @@ export const requirementOptions = async (
         ({ id: candidateId }) => candidateId === requirementId,
     );
     if (!requirement) throw new NotFoundError('Onboarding requirement not found');
-    const answers = { ...(onboarding.answers || {}), ...(proposedAnswers || {}) };
+    const answers = joinLinks.applyDerivedAnswers(onboarding.joinLinkConfiguration, {
+        ...(onboarding.answers || {}),
+        ...(proposedAnswers || {}),
+    });
     joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, answers);
     return resolveOptions(onboarding, requirement, answers, user);
 };
@@ -222,10 +235,14 @@ export const saveAnswers = async (
         throw new ValidationError(
             'Provisioning already created resources; retry without changing the configuration',
         );
-    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, answers);
-    validatePartialAnswers(onboarding, answers);
-    selectRepositoryInstallation(onboarding, answers);
-    onboarding.answers = answers;
+    const resolvedAnswers = joinLinks.applyDerivedAnswers(
+        onboarding.joinLinkConfiguration,
+        answers,
+    );
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, resolvedAnswers);
+    validatePartialAnswers(onboarding, resolvedAnswers);
+    selectRepositoryInstallation(onboarding, resolvedAnswers);
+    onboarding.answers = resolvedAnswers;
     onboarding.status = 'CONFIGURING';
     onboarding.failure = undefined;
     await onboarding.save();
@@ -254,10 +271,19 @@ export const configure = async (
             'Provisioning already created resources; retry without changing the configuration',
         );
 
-    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, answers);
-    await validateAnswers(onboarding, answers, user);
-    selectRepositoryInstallation(onboarding, answers);
-    onboarding.answers = answers;
+    const resolvedAnswers = joinLinks.applyDerivedAnswers(
+        onboarding.joinLinkConfiguration,
+        answers,
+    );
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, resolvedAnswers);
+    await validateAnswers(onboarding, resolvedAnswers, user);
+    const canonicalAnswers = joinLinks.applyDerivedAnswers(
+        onboarding.joinLinkConfiguration,
+        resolvedAnswers,
+    );
+    joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, canonicalAnswers);
+    selectRepositoryInstallation(onboarding, canonicalAnswers);
+    onboarding.answers = canonicalAnswers;
     onboarding.status = 'READY';
     onboarding.failure = undefined;
     await onboarding.save();

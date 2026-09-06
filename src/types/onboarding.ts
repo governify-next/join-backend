@@ -56,19 +56,26 @@ export interface JoinLinkConfiguration {
         end: string;
         timezone: string;
     }>;
-    scopeName: JoinLinkField<string>;
+    scopeName: JoinLinkField<string> & {
+        fromRepository: boolean;
+    };
 }
 
-export interface JoinLinkCreateInput {
+interface JoinLinkCreateInputBase {
     agreementTemplateId: string;
     agreementValidity: {
         initial: string;
         end: string;
         timezone: string;
     };
-    scopeName: string;
     editable?: Partial<Record<keyof JoinLinkConfiguration, boolean>>;
 }
+
+export type JoinLinkCreateInput = JoinLinkCreateInputBase &
+    (
+        | { scopeNameFromRepository: true; scopeName?: never }
+        | { scopeNameFromRepository: false; scopeName: string }
+    );
 
 export interface GuaranteeTemplate {
     _id: string;
