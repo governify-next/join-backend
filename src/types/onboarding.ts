@@ -197,6 +197,19 @@ export interface SignatureMapping {
     metrics: MetricMapping[];
 }
 
+export interface ScopeChildMapping {
+    answer: string;
+    fields: Record<string, ValueBinding>;
+}
+
+export interface ScopeNodeInput {
+    name: string;
+    description?: string;
+    type: string;
+    config: Record<string, unknown>;
+    children: ScopeNodeInput[];
+}
+
 export interface OnboardingDefinition {
     schemaVersion: '1.0';
     id: string;
@@ -207,6 +220,7 @@ export interface OnboardingDefinition {
         contract: Record<string, ValueBinding>;
         signatures: SignatureMapping[];
         scope: Record<string, ValueBinding>;
+        scopeChildren?: ScopeChildMapping[];
     };
 }
 

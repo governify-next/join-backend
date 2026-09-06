@@ -154,12 +154,18 @@ export const materialize = (
         contract,
         signatures,
     };
+    return { agreement, scope: materializeScope(onboarding, agreement) };
+};
+
+export const materializeScope = (
+    onboarding: IOnboarding,
+    agreement: MaterializedOnboarding['agreement'],
+) => {
+    const answers = onboarding.answers || {};
     const scope: Record<string, unknown> = {
         description: `Project onboarded from ${onboarding.agreementTemplate.displayName}`,
         type: 'Project',
-        parentId: null,
-        fields: [],
-        permissions: { view: [], edit: [], delete: [], create: [] },
+        children: [],
         config: {
             auditConfig: {
                 join: {
@@ -178,6 +184,20 @@ export const materialize = (
     for (const [path, binding] of Object.entries(onboarding.onboardingDefinition.mappings.scope)) {
         setPath(scope, path, resolveBinding(binding, answers, onboarding));
     }
+    scope.children = (onboarding.onboardingDefinition.mappings.scopeChildren || []).flatMap(
+        (mapping) => {
+            const members = answers[mapping.answer];
+            if (!Array.isArray(members))
+                throw new ValidationError(`Scope children require '${mapping.answer}'`);
+            return members.map((member) => {
+                const child: Record<string, unknown> = { config: {}, children: [] };
+                for (const [path, binding] of Object.entries(mapping.fields)) {
+                    setPath(child, path, resolveBinding(binding, answers, onboarding, member));
+                }
+                return child;
+            });
+        },
+    );
     const scopeName = String(readPath(scope, 'name'));
     scope.agreementCollection = {
         name: scopeName,
@@ -186,10 +206,7 @@ export const materialize = (
         permissions: {},
     };
 
-    return {
-        agreement,
-        scope,
-    };
+    return scope;
 };
 
 export const withInitialGitHubCredential = (

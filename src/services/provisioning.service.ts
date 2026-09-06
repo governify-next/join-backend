@@ -8,7 +8,11 @@ import { ForbiddenError, ValidationError } from '../utils/customErrors.js';
 import { getLogger } from '../utils/logger.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import * as ecosystem from './ecosystemPublisher.service.js';
-import { materialize, withInitialGitHubCredential } from './materialization.service.js';
+import {
+    materialize,
+    materializeScope,
+    withInitialGitHubCredential,
+} from './materialization.service.js';
 import { readPath } from './requirement.service.js';
 import { organizationsForUser } from './scopeManager.service.js';
 
@@ -103,8 +107,13 @@ const provision = async (onboarding: IOnboarding) => {
 
     const guaranteeTemplates = await agreementTemplates.listGuaranteeTemplates();
     let payload = onboarding.result?.materialized as MaterializedOnboarding | undefined;
-    if (!onboarding.checkpoints.includes('materialized') || !payload) {
-        payload = materialize(onboarding, guaranteeTemplates);
+    const needsScopeTree =
+        !onboarding.checkpoints.includes('scope') && !Array.isArray(payload?.scope.children);
+    if (!onboarding.checkpoints.includes('materialized') || !payload || needsScopeTree) {
+        onboarding.onboardingDefinition = current.onboardingDefinition;
+        payload = payload
+            ? { ...payload, scope: materializeScope(onboarding, payload.agreement) }
+            : materialize(onboarding, guaranteeTemplates);
         await checkpoint(onboarding, 'materialized', { materialized: payload });
     }
 
@@ -129,7 +138,6 @@ const provision = async (onboarding: IOnboarding) => {
         scopeId = await ecosystem.ensureScope(
             onboardingResourceId,
             organizationName,
-            scopeId,
             onboarding.userId,
             payload,
         );
