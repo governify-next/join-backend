@@ -137,37 +137,7 @@ const buildSignatures = (
     });
 };
 
-const signaturesBySubject = (onboarding: IOnboarding, signatures: SignatureInput[]) => {
-    const answers = onboarding.answers || {};
-    const project: SignatureInput[] = [];
-    const members = new Map<string, SignatureInput[]>();
-    let signatureIndex = 0;
-
-    for (const mapping of onboarding.onboardingDefinition.mappings.signatures) {
-        if (mapping.subject.kind === 'project') {
-            project.push(signatures[signatureIndex++]);
-            continue;
-        }
-
-        const repeatItems = answers[mapping.subject.answer];
-        if (!Array.isArray(repeatItems))
-            throw new ValidationError(`Scope signatures require '${mapping.subject.answer}'`);
-        for (const repeatItem of repeatItems) {
-            const subject = String(readPath(repeatItem, mapping.subject.itemPath) || '');
-            if (!subject)
-                throw new ValidationError(
-                    `Guarantee '${mapping.guaranteeTemplateName}' has an invalid member subject`,
-                );
-            members.set(subject, [...(members.get(subject) || []), signatures[signatureIndex++]]);
-        }
-    }
-
-    if (signatureIndex !== signatures.length)
-        throw new ValidationError('Materialized signatures do not match their scope subjects');
-    return { project, members };
-};
-
-const scopeMembers = (answers: OnboardingAnswers, signatures: Map<string, SignatureInput[]>) => {
+const scopeMembers = (answers: OnboardingAnswers) => {
     const users = answers.github_users;
     const details = answers.github_member_details;
     if (!Array.isArray(users) || !Array.isArray(details))
@@ -182,10 +152,12 @@ const scopeMembers = (answers: OnboardingAnswers, signatures: Map<string, Signat
         const detail = detailsByUsername.get(user.username);
         if (!detail)
             throw new ValidationError(`Scope member '${user.username}' has no contact details`);
+        const firstName = String(detail.firstName || '').trim();
+        const lastName = String(detail.lastName || '').trim();
         return {
             ...user,
             ...detail,
-            signatures: signatures.get(user.username) || [],
+            scopeName: `${firstName}_${lastName}`.replaceAll(/\s+/g, '_'),
         };
     });
 };
@@ -194,9 +166,10 @@ const materializeChildren = (
     mappings: ScopeChildMapping[],
     answers: OnboardingAnswers,
     onboarding: IOnboarding,
+    parentItem?: unknown,
 ): Record<string, unknown>[] =>
     mappings.flatMap((mapping) => {
-        const repeatItems = mapping.answer ? answers[mapping.answer] : [undefined];
+        const repeatItems = mapping.answer ? answers[mapping.answer] : [parentItem];
         if (!Array.isArray(repeatItems))
             throw new ValidationError(`Scope children require '${mapping.answer}'`);
         return repeatItems.map((repeatItem) => {
@@ -204,7 +177,12 @@ const materializeChildren = (
             for (const [path, binding] of Object.entries(mapping.fields)) {
                 setPath(child, path, resolveBinding(binding, answers, onboarding, repeatItem));
             }
-            child.children = materializeChildren(mapping.children || [], answers, onboarding);
+            child.children = materializeChildren(
+                mapping.children || [],
+                answers,
+                onboarding,
+                repeatItem,
+            );
             return child;
         });
     });
@@ -227,33 +205,19 @@ export const materialize = (
         contract,
         signatures,
     };
-    return { agreement, scope: materializeScope(onboarding, agreement) };
+    return { agreement, scope: materializeScope(onboarding) };
 };
 
-export const materializeScope = (
-    onboarding: IOnboarding,
-    agreement: MaterializedOnboarding['agreement'],
-) => {
+export const materializeScope = (onboarding: IOnboarding) => {
     const answers = onboarding.answers || {};
-    const scopedSignatures = signaturesBySubject(onboarding, agreement.signatures);
     const scopeAnswers = {
         ...answers,
-        __joinProjectSignatures: scopedSignatures.project,
-        github_member_details: scopeMembers(answers, scopedSignatures.members),
+        github_member_details: scopeMembers(answers),
     };
     const scope: Record<string, unknown> = {
-        description: `Repository onboarded from ${onboarding.agreementTemplate.displayName}`,
         type: 'Repositories',
         children: [],
-        config: {
-            managedBy: 'join',
-            schemaVersion: '2.0',
-            onboardingId: onboarding._id.toString(),
-            ...(onboarding.joinLinkId ? { joinLinkId: onboarding.joinLinkId.toString() } : {}),
-            onboardingDefinitionId: onboarding.onboardingDefinition.id,
-            agreementTemplate: agreement.agreementTemplate,
-            agreementContract: agreement.contract,
-        },
+        config: {},
     };
     for (const [path, binding] of Object.entries(onboarding.onboardingDefinition.mappings.scope)) {
         setPath(scope, path, resolveBinding(binding, scopeAnswers, onboarding));

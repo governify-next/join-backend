@@ -17,13 +17,13 @@ The currently supported catalog contains one definition for Registry's public `C
 - Persist resumable onboarding sessions, provisioning checkpoints and completed results; the same source may be onboarded more than once.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
-- Send the completed repository, project and member Scope tree to Scope Manager, create/reuse the Agreement collection and version in Registry, start an asynchronous state generation, and create an hourly Director task.
+- Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; start an asynchronous state generation; and create an hourly Director task.
 - Create or update the Reporter dashboard for the published Agreement Version.
 - Filter the final dashboard link, organization link and Scope/Agreement data according to the result options stored in the join link.
 - Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
 - Mint one initial GitHub installation token while creating the Agreement version.
 
-The initial installation token and its expiration are written only to the Registry Agreement version so the first fetch can run immediately. Join keeps the durable `installationId` in the Scope tree's credential reference, but does not place the token in its onboarding result, Scope Manager or frontend response, and exposes no token-refresh endpoint. Fetcher owns all subsequent token renewal using the `installationId`. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
+The initial installation token, its expiration and the durable `installationId` are written only to the Registry Agreement version so the first fetch can run immediately. Join does not place the token in its onboarding result, Scope Manager or frontend response, and exposes no token-refresh endpoint. Fetcher owns all subsequent token renewal using the `installationId`. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
 
 ## Local development
 

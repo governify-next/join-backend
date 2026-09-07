@@ -110,11 +110,12 @@ const provision = async (onboarding: IOnboarding) => {
     const needsScopeTree =
         !onboarding.checkpoints.includes('scope') &&
         (!Array.isArray(payload?.scope.children) ||
-            readPath(payload?.scope, 'config.auditConfig') !== undefined);
+            readPath(payload?.scope, 'config.auditConfig') !== undefined ||
+            readPath(payload?.scope, 'config.name') !== readPath(payload?.scope, 'name'));
     if (!onboarding.checkpoints.includes('materialized') || !payload || needsScopeTree) {
         onboarding.onboardingDefinition = current.onboardingDefinition;
         payload = payload
-            ? { ...payload, scope: materializeScope(onboarding, payload.agreement) }
+            ? { ...payload, scope: materializeScope(onboarding) }
             : materialize(onboarding, guaranteeTemplates);
         await checkpoint(onboarding, 'materialized', { materialized: payload });
     }

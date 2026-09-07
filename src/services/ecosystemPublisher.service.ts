@@ -171,25 +171,17 @@ export const ensureScope = async (
 
     const collectionUrl = `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes`;
     const root = scopeNodeInput(scope);
-    if (readPath(root, 'config.onboardingId') !== onboardingId)
-        throw new ValidationError('Materialized Scope has an invalid onboarding ID');
 
     const scopeOnboardingId = (candidate: Record<string, unknown>) =>
         readPath(candidate, 'config.onboardingId') ||
         readPath(candidate, 'config.auditConfig.join.onboardingId');
 
-    const reuse = (existing: Record<string, unknown>) => {
-        const legacy = readPath(existing, 'config.onboardingId') === undefined;
-        if (
-            existing.parentId !== null ||
-            (!legacy && !matchesExpected(scopeNodeIdentity(existing), scopeNodeIdentity(root)))
-        )
-            throw new DuplicateKeyError(
-                `Scope '${scopeName}' already exists with different contents`,
-            );
+    const reuseTaggedScope = (existing: Record<string, unknown>) => {
+        if (existing.parentId !== null)
+            throw new DuplicateKeyError(`Scope '${scopeName}' has an invalid parent`);
         return resourceId(existing, `Scope '${scopeName}'`);
     };
-    const findExisting = async () => {
+    const findTaggedScope = async () => {
         const scopes = await requestJson<Record<string, unknown>[]>(`${collectionUrl}?flat=true`, {
             headers: serviceHeaders(),
         });
@@ -199,8 +191,8 @@ export const ensureScope = async (
         );
     };
 
-    const existing = await findExisting();
-    if (existing) return reuse(existing);
+    const taggedScope = await findTaggedScope();
+    if (taggedScope) return reuseTaggedScope(taggedScope);
 
     try {
         const created = await requestJson<Record<string, unknown>[]>(`${collectionUrl}/tree`, {
@@ -210,14 +202,15 @@ export const ensureScope = async (
         });
         const createdRoot = created.find(
             (candidate) =>
-                candidate.parentId === null && scopeOnboardingId(candidate) === onboardingId,
+                candidate.parentId === null &&
+                matchesExpected(scopeNodeIdentity(candidate), scopeNodeIdentity(root)),
         );
         if (!createdRoot)
             throw new ValidationError('Scope Manager did not return the created root scope');
-        return reuse(createdRoot);
+        return resourceId(createdRoot, `Scope '${scopeName}'`);
     } catch (error) {
-        const createdByConcurrentAttempt = await findExisting();
-        if (createdByConcurrentAttempt) return reuse(createdByConcurrentAttempt);
+        const legacyScope = await findTaggedScope();
+        if (legacyScope) return reuseTaggedScope(legacyScope);
         throw error;
     }
 };

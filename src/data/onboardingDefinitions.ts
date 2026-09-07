@@ -3,6 +3,7 @@ import type {
     OnboardingDefinition,
     PublicAgreementTemplate,
     RequirementDefinition,
+    ScopeChildMapping,
     SignatureMapping,
     ValueBinding,
 } from '../types/onboarding.js';
@@ -300,6 +301,49 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             } satisfies SignatureMapping;
         },
     );
+    const scopeChildren: ScopeChildMapping[] = [
+        {
+            answer: 'github_member_details',
+            fields: {
+                name: { repeatItem: 'scopeName' },
+                type: { literal: 'Members' },
+                'config.firstName': { repeatItem: 'firstName' },
+                'config.lastName': { repeatItem: 'lastName' },
+                'config.email': { repeatItem: 'email' },
+            },
+            children: [
+                {
+                    fields: {
+                        name: { literal: 'GitHub' },
+                        type: { literal: 'Identities' },
+                        'config.username': { repeatItem: 'username' },
+                        'config.userId': { repeatItem: 'id' },
+                    },
+                },
+            ],
+        },
+        {
+            fields: {
+                name: { literal: 'GitHub' },
+                type: { literal: 'Identities' },
+                'config.owner': { answer: 'github_repository', path: 'owner' },
+                'config.repository': { answer: 'github_repository', path: 'name' },
+                'config.repositoryId': { answer: 'github_repository', path: 'id' },
+            },
+            children: [
+                {
+                    fields: {
+                        name: { answer: 'github_project', path: 'title' },
+                        type: { literal: 'Projects' },
+                        'config.projectName': { answer: 'github_project', path: 'title' },
+                        'config.owner': { answer: 'github_project', path: 'owner' },
+                        'config.projectId': { answer: 'github_project', path: 'id' },
+                        'config.projectNumber': { answer: 'github_project', path: 'number' },
+                    },
+                },
+            ],
+        },
+    ];
 
     return {
         schemaVersion: '1.0',
@@ -348,67 +392,9 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                 organizationId: { answer: 'scope_organization', path: '_id' },
                 name: { answer: 'scope_name' },
                 type: { literal: 'Repositories' },
-                'config.sourceProvider': { literal: 'github' },
-                'config.owner': { answer: 'github_repository', path: 'owner' },
-                'config.repository': { answer: 'github_repository', path: 'name' },
-                'config.repositoryFullName': {
-                    answer: 'github_repository',
-                    path: 'fullName',
-                },
-                'config.repositoryId': { answer: 'github_repository', path: 'id' },
-                'config.private': { answer: 'github_repository', path: 'private' },
-                'config.installationId': {
-                    answer: 'github_repository',
-                    path: 'installationId',
-                },
-                'config.installationAccount': {
-                    answer: 'github_repository',
-                    path: 'installationAccount',
-                },
-                'config.credentialRef': { integration: 'github' },
+                'config.name': { answer: 'scope_name' },
             },
-            scopeChildren: [
-                {
-                    fields: {
-                        name: { answer: 'github_project', path: 'title' },
-                        description: { literal: 'GitHub Project used by the agreement' },
-                        type: { literal: 'Projects' },
-                        'config.sourceProvider': { literal: 'github' },
-                        'config.projectId': { answer: 'github_project', path: 'id' },
-                        'config.projectNumber': { answer: 'github_project', path: 'number' },
-                        'config.owner': { answer: 'github_project', path: 'owner' },
-                        'config.statusFields': {
-                            answer: 'github_project',
-                            path: 'statusFields',
-                        },
-                        'config.statusField': { answer: 'github_status_field' },
-                        'config.inProgressColumns': { answer: columns.inProgress },
-                        'config.inReviewColumns': { answer: columns.inReview },
-                        'config.doneColumns': { answer: columns.done },
-                        'config.signatures': { answer: '__joinProjectSignatures' },
-                    },
-                    children: [
-                        {
-                            answer: 'github_member_details',
-                            fields: {
-                                name: { repeatItem: 'username' },
-                                description: {
-                                    literal: 'GitHub member evaluated by the agreement',
-                                },
-                                type: { literal: 'Members' },
-                                'config.sourceProvider': { literal: 'github' },
-                                'config.githubUserId': { repeatItem: 'id' },
-                                'config.username': { repeatItem: 'username' },
-                                'config.avatarUrl': { repeatItem: 'avatarUrl' },
-                                'config.firstName': { repeatItem: 'firstName' },
-                                'config.lastName': { repeatItem: 'lastName' },
-                                'config.email': { repeatItem: 'email' },
-                                'config.signatures': { repeatItem: 'signatures' },
-                            },
-                        },
-                    ],
-                },
-            ],
+            scopeChildren,
         },
     };
 };
