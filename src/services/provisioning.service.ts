@@ -108,7 +108,9 @@ const provision = async (onboarding: IOnboarding) => {
     const guaranteeTemplates = await agreementTemplates.listGuaranteeTemplates();
     let payload = onboarding.result?.materialized as MaterializedOnboarding | undefined;
     const needsScopeTree =
-        !onboarding.checkpoints.includes('scope') && !Array.isArray(payload?.scope.children);
+        !onboarding.checkpoints.includes('scope') &&
+        (!Array.isArray(payload?.scope.children) ||
+            readPath(payload?.scope, 'config.auditConfig') !== undefined);
     if (!onboarding.checkpoints.includes('materialized') || !payload || needsScopeTree) {
         onboarding.onboardingDefinition = current.onboardingDefinition;
         payload = payload

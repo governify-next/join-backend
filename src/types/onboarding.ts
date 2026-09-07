@@ -215,8 +215,9 @@ export interface SignatureMapping {
 }
 
 export interface ScopeChildMapping {
-    answer: string;
+    answer?: string;
     fields: Record<string, ValueBinding>;
+    children?: ScopeChildMapping[];
 }
 
 export interface ScopeNodeInput {

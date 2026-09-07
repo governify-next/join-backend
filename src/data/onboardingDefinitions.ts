@@ -348,49 +348,65 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                 organizationId: { answer: 'scope_organization', path: '_id' },
                 name: { answer: 'scope_name' },
                 type: { literal: 'Repositories' },
+                'config.sourceProvider': { literal: 'github' },
                 'config.owner': { answer: 'github_repository', path: 'owner' },
                 'config.repository': { answer: 'github_repository', path: 'name' },
-                'config.credentialRef': { integration: 'github' },
-                'config.auditConfig.join.provider': { literal: 'join' },
-                'config.auditConfig.join.repository': {
+                'config.repositoryFullName': {
                     answer: 'github_repository',
                     path: 'fullName',
                 },
-                'config.auditConfig.join.repositoryId': {
+                'config.repositoryId': { answer: 'github_repository', path: 'id' },
+                'config.private': { answer: 'github_repository', path: 'private' },
+                'config.installationId': {
                     answer: 'github_repository',
-                    path: 'id',
+                    path: 'installationId',
                 },
-                'config.auditConfig.join.statusMapping.inProgress': {
-                    answer: columns.inProgress,
-                    transform: 'pluckName',
+                'config.installationAccount': {
+                    answer: 'github_repository',
+                    path: 'installationAccount',
                 },
-                'config.auditConfig.join.statusMapping.inReview': {
-                    answer: columns.inReview,
-                    transform: 'pluckName',
-                },
-                'config.auditConfig.join.statusMapping.done': {
-                    answer: columns.done,
-                    transform: 'pluckName',
-                },
-                'config.auditConfig.join.trackedUsers': {
-                    answer: 'github_users',
-                    transform: 'pluckUsername',
-                },
-                'config.auditConfig.join.memberDetails': {
-                    answer: 'github_member_details',
-                },
+                'config.credentialRef': { integration: 'github' },
             },
             scopeChildren: [
                 {
-                    answer: 'github_member_details',
                     fields: {
-                        name: { repeatItem: 'username' },
-                        type: { literal: 'Members' },
-                        'config.username': { repeatItem: 'username' },
-                        'config.firstName': { repeatItem: 'firstName' },
-                        'config.lastName': { repeatItem: 'lastName' },
-                        'config.email': { repeatItem: 'email' },
+                        name: { answer: 'github_project', path: 'title' },
+                        description: { literal: 'GitHub Project used by the agreement' },
+                        type: { literal: 'Projects' },
+                        'config.sourceProvider': { literal: 'github' },
+                        'config.projectId': { answer: 'github_project', path: 'id' },
+                        'config.projectNumber': { answer: 'github_project', path: 'number' },
+                        'config.owner': { answer: 'github_project', path: 'owner' },
+                        'config.statusFields': {
+                            answer: 'github_project',
+                            path: 'statusFields',
+                        },
+                        'config.statusField': { answer: 'github_status_field' },
+                        'config.inProgressColumns': { answer: columns.inProgress },
+                        'config.inReviewColumns': { answer: columns.inReview },
+                        'config.doneColumns': { answer: columns.done },
+                        'config.signatures': { answer: '__joinProjectSignatures' },
                     },
+                    children: [
+                        {
+                            answer: 'github_member_details',
+                            fields: {
+                                name: { repeatItem: 'username' },
+                                description: {
+                                    literal: 'GitHub member evaluated by the agreement',
+                                },
+                                type: { literal: 'Members' },
+                                'config.sourceProvider': { literal: 'github' },
+                                'config.githubUserId': { repeatItem: 'id' },
+                                'config.username': { repeatItem: 'username' },
+                                'config.avatarUrl': { repeatItem: 'avatarUrl' },
+                                'config.firstName': { repeatItem: 'firstName' },
+                                'config.lastName': { repeatItem: 'lastName' },
+                                'config.email': { repeatItem: 'email' },
+                                'config.signatures': { repeatItem: 'signatures' },
+                            },
+                        },
+                    ],
                 },
             ],
         },

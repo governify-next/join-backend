@@ -171,13 +171,18 @@ export const ensureScope = async (
 
     const collectionUrl = `${bootEnv.SCOPE_MANAGER_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes`;
     const root = scopeNodeInput(scope);
-    if (readPath(root, 'config.auditConfig.join.onboardingId') !== onboardingId)
-        throw new ValidationError('Materialized Scope has an invalid onboarding audit ID');
+    if (readPath(root, 'config.onboardingId') !== onboardingId)
+        throw new ValidationError('Materialized Scope has an invalid onboarding ID');
+
+    const scopeOnboardingId = (candidate: Record<string, unknown>) =>
+        readPath(candidate, 'config.onboardingId') ||
+        readPath(candidate, 'config.auditConfig.join.onboardingId');
 
     const reuse = (existing: Record<string, unknown>) => {
+        const legacy = readPath(existing, 'config.onboardingId') === undefined;
         if (
             existing.parentId !== null ||
-            !matchesExpected(scopeNodeIdentity(existing), scopeNodeIdentity(root))
+            (!legacy && !matchesExpected(scopeNodeIdentity(existing), scopeNodeIdentity(root)))
         )
             throw new DuplicateKeyError(
                 `Scope '${scopeName}' already exists with different contents`,
@@ -190,8 +195,7 @@ export const ensureScope = async (
         });
         return scopes.find(
             (candidate) =>
-                candidate.parentId === null &&
-                readPath(candidate, 'config.auditConfig.join.onboardingId') === onboardingId,
+                candidate.parentId === null && scopeOnboardingId(candidate) === onboardingId,
         );
     };
 
@@ -206,8 +210,7 @@ export const ensureScope = async (
         });
         const createdRoot = created.find(
             (candidate) =>
-                candidate.parentId === null &&
-                readPath(candidate, 'config.auditConfig.join.onboardingId') === onboardingId,
+                candidate.parentId === null && scopeOnboardingId(candidate) === onboardingId,
         );
         if (!createdRoot)
             throw new ValidationError('Scope Manager did not return the created root scope');
