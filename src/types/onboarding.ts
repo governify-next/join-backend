@@ -48,6 +48,12 @@ export interface JoinLinkField<T> {
     editable: boolean;
 }
 
+export interface JoinLinkResultOptions {
+    dashboardURL: boolean;
+    organizationURL: boolean;
+    scopeAndAgreement: boolean;
+}
+
 export interface JoinLinkConfiguration {
     organization: JoinLinkField<JoinLinkOrganization>;
     agreementTemplate: JoinLinkField<PublicAgreementTemplate>;
@@ -56,19 +62,30 @@ export interface JoinLinkConfiguration {
         end: string;
         timezone: string;
     }>;
-    scopeName: JoinLinkField<string>;
+    scopeName: JoinLinkField<string> & {
+        fromRepository: boolean;
+    };
+    resultOptions: JoinLinkResultOptions;
 }
 
-export interface JoinLinkCreateInput {
+interface JoinLinkCreateInputBase {
     agreementTemplateId: string;
     agreementValidity: {
         initial: string;
         end: string;
         timezone: string;
     };
-    scopeName: string;
-    editable?: Partial<Record<keyof JoinLinkConfiguration, boolean>>;
+    editable?: Partial<
+        Record<'organization' | 'agreementTemplate' | 'agreementValidity' | 'scopeName', boolean>
+    >;
+    resultOptions?: JoinLinkResultOptions;
 }
+
+export type JoinLinkCreateInput = JoinLinkCreateInputBase &
+    (
+        | { scopeNameFromRepository: true; scopeName?: never }
+        | { scopeNameFromRepository: false; scopeName: string }
+    );
 
 export interface GuaranteeTemplate {
     _id: string;
@@ -198,8 +215,9 @@ export interface SignatureMapping {
 }
 
 export interface ScopeChildMapping {
-    answer: string;
+    answer?: string;
     fields: Record<string, ValueBinding>;
+    children?: ScopeChildMapping[];
 }
 
 export interface ScopeNodeInput {

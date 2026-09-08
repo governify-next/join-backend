@@ -9,6 +9,7 @@ import type {
 } from '../types/onboarding.js';
 import { NotFoundError, ValidationError } from '../utils/customErrors.js';
 import { localDateTimeInZoneToIso } from '../utils/date.js';
+import { defaultResultOptions, normalizeResultOptions } from '../utils/onboardingResult.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import {
     organizationsAdministeredBy,
@@ -18,18 +19,66 @@ import {
 
 const scopeNamePattern = /^[A-Za-z0-9_-]+$/;
 
+export const repositoryScopeName = (repository: unknown) => {
+    if (!repository || typeof repository !== 'object' || Array.isArray(repository)) return '';
+    const name = String((repository as Record<string, unknown>).name || '');
+    const normalized = name
+        .replace(/[^A-Za-z0-9_-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 96);
+    return normalized.length >= 3 ? normalized : `${normalized || 'repository'}-scope`;
+};
+
+export const applyDerivedAnswers = (
+    configuration: JoinLinkConfiguration | undefined,
+    answers: OnboardingAnswers,
+) => {
+    const resolved = { ...answers };
+    if (!configuration?.scopeName.fromRepository) return resolved;
+    if (
+        configuration.scopeName.editable &&
+        typeof resolved.scope_name === 'string' &&
+        resolved.scope_name.length > 0
+    )
+        return resolved;
+    const scopeName = repositoryScopeName(resolved.github_repository);
+    if (scopeName) resolved.scope_name = scopeName;
+    else delete resolved.scope_name;
+    return resolved;
+};
+
 const validateInput = (input: JoinLinkCreateInput) => {
     if (!input || typeof input !== 'object')
         throw new ValidationError('Join link configuration is required');
     if (!input.agreementTemplateId) throw new ValidationError('Select an agreement template');
     if (
-        typeof input.scopeName !== 'string' ||
-        input.scopeName.length < 3 ||
-        input.scopeName.length > 96 ||
-        !scopeNamePattern.test(input.scopeName)
+        input.resultOptions !== undefined &&
+        (typeof input.resultOptions !== 'object' ||
+            input.resultOptions === null ||
+            Array.isArray(input.resultOptions) ||
+            Object.keys(defaultResultOptions).some(
+                (option) =>
+                    typeof input.resultOptions?.[option as keyof typeof defaultResultOptions] !==
+                    'boolean',
+            ))
+    )
+        throw new ValidationError('Result options must explicitly enable or disable every output');
+    if (typeof input.scopeNameFromRepository !== 'boolean')
+        throw new ValidationError('Automatic Scope naming must be enabled or disabled');
+    if (input.scopeNameFromRepository && input.scopeName !== undefined)
+        throw new ValidationError(
+            'Provide either a Scope and agreement name or automatic repository naming, not both',
+        );
+    if (
+        !input.scopeNameFromRepository &&
+        (typeof input.scopeName !== 'string' ||
+            input.scopeName.length < 3 ||
+            input.scopeName.length > 96 ||
+            !scopeNamePattern.test(input.scopeName))
     )
         throw new ValidationError(
-            'Scope name must contain 3 to 96 letters, numbers, underscores or hyphens',
+            'Enter a Scope and agreement name or use the enrolled repository name automatically',
         );
 
     const { initial, end, timezone } = input.agreementValidity || {};
@@ -55,6 +104,15 @@ export const create = async (
         requireOrganizationAdmin(organizationName, user),
         agreementTemplates.getPublic(input.agreementTemplateId),
     ]);
+    if (
+        input.scopeNameFromRepository &&
+        !templateOption.onboardingDefinition.requirements.some(
+            ({ id }) => id === 'github_repository',
+        )
+    )
+        throw new ValidationError(
+            'The selected agreement does not enroll a repository for automatic Scope naming',
+        );
     const editable = input.editable || {};
     return joinLinkRepository.create({
         createdBy: user.id,
@@ -73,9 +131,11 @@ export const create = async (
                 editable: editable.agreementValidity === true,
             },
             scopeName: {
-                value: input.scopeName,
+                value: input.scopeNameFromRepository ? '' : input.scopeName!,
                 editable: editable.scopeName === true,
+                fromRepository: input.scopeNameFromRepository === true,
             },
+            resultOptions: normalizeResultOptions(input.resultOptions),
         },
     });
 };
@@ -139,8 +199,21 @@ export const validateLockedAnswers = (
         answerId(answers.scope_organization) !== configuration.organization.value._id
     )
         throw new ValidationError('The organization is locked by the join link');
-    if (!configuration.scopeName.editable && answers.scope_name !== configuration.scopeName.value)
-        throw new ValidationError('The Scope name is locked by the join link');
+    if (configuration.scopeName.fromRepository && !configuration.scopeName.editable) {
+        const expectedScopeName = repositoryScopeName(answers.github_repository);
+        if (
+            expectedScopeName
+                ? answers.scope_name !== expectedScopeName
+                : answers.scope_name !== undefined
+        )
+            throw new ValidationError(
+                'The Scope and agreement name must match the enrolled repository name',
+            );
+    } else if (
+        !configuration.scopeName.editable &&
+        answers.scope_name !== configuration.scopeName.value
+    )
+        throw new ValidationError('The Scope and agreement name is locked by the join link');
     if (!configuration.agreementValidity.editable) {
         const validity = configuration.agreementValidity.value;
         if (
@@ -154,7 +227,9 @@ export const validateLockedAnswers = (
 
 export const initialAnswers = (configuration: JoinLinkConfiguration): OnboardingAnswers => ({
     scope_organization: structuredClone(configuration.organization.value),
-    scope_name: configuration.scopeName.value,
+    ...(configuration.scopeName.fromRepository
+        ? {}
+        : { scope_name: configuration.scopeName.value }),
     agreement_validity_start: configuration.agreementValidity.value.initial,
     agreement_validity_end: configuration.agreementValidity.value.end,
     agreement_timezone: configuration.agreementValidity.value.timezone,

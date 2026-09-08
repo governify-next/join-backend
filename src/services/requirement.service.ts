@@ -89,6 +89,16 @@ const requireZenHub = (onboarding: IOnboarding) => {
         throw new ValidationError('Connect the ZenHub demo before selecting its resources');
 };
 
+export const organizationOptions = async (user: AuthenticatedUser): Promise<ResourceOption[]> => {
+    const organizations = await organizationsForUser(user.username, user.id);
+    return organizations.map((organization) => ({
+        id: String(organization._id),
+        label: String(organization.displayName || organization.name),
+        description: organization.description ? String(organization.description) : undefined,
+        value: organization,
+    }));
+};
+
 export const resolveOptions = async (
     onboarding: IOnboarding,
     requirement: RequirementDefinition,
@@ -109,17 +119,8 @@ export const resolveOptions = async (
     );
 
     switch (requirement.source.operation) {
-        case 'scope.organizations': {
-            const organizations = await organizationsForUser(user.username, user.id);
-            return organizations.map((organization) => ({
-                id: String(organization._id),
-                label: String(organization.displayName || organization.name),
-                description: organization.description
-                    ? String(organization.description)
-                    : undefined,
-                value: organization,
-            }));
-        }
+        case 'scope.organizations':
+            return organizationOptions(user);
         case 'github.repositories': {
             const installations = githubInstallations(onboarding);
             const repositories = await Promise.all(
@@ -283,7 +284,10 @@ const validateValue = (requirement: RequirementDefinition, value: unknown) => {
         throw new ValidationError(`'${requirement.ui.label}' is not a valid IANA timezone`);
 };
 
-export const validatePartialAnswers = (onboarding: IOnboarding, answers: OnboardingAnswers) => {
+export const validatePartialAnswers = (
+    onboarding: Pick<IOnboarding, 'onboardingDefinition'>,
+    answers: OnboardingAnswers,
+) => {
     const requirements = new Map(
         onboarding.onboardingDefinition.requirements.map((requirement) => [
             requirement.id,

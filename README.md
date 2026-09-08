@@ -15,14 +15,16 @@ The currently supported catalog contains one definition for Registry's public `C
 - Resolve the installation from the selected repository, then enumerate Projects V2 boards, status fields and collaborators.
 - Retain the mocked ZenHub adapter for future onboarding definitions without exposing it in the current Berkeley flow.
 - Persist resumable onboarding sessions, provisioning checkpoints and completed results; the same source may be onboarded more than once.
+- List the authenticated user's onboardings with enabled result links, and delete unfinished sessions. Deletion stops active publishing at its next save and retains any ecosystem resources already created.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
-- Send the completed onboarding and Agreement copy to Scope Manager, create/reuse the Agreement collection and version in Registry, start an asynchronous state generation, and create an hourly Director task.
+- Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; start an asynchronous state generation; and create an hourly Director task.
 - Create or update the Reporter dashboard for the published Agreement Version.
+- Filter the final dashboard link, organization link and Scope/Agreement data according to the result options stored in the join link.
 - Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
 - Mint one initial GitHub installation token while creating the Agreement version.
 
-The initial installation token, its expiration and the durable `installationId` are written only to the Registry Agreement version so the first fetch can run immediately. Join does not place the token in its onboarding result, Scope Manager audit copy or frontend response, and exposes no token-refresh endpoint. Fetcher owns all subsequent token renewal using the `installationId`.
+The initial installation token, its expiration and the durable `installationId` are written only to the Registry Agreement version so the first fetch can run immediately. Join does not place the token in its onboarding result, Scope Manager or frontend response, and exposes no token-refresh endpoint. Fetcher owns all subsequent token renewal using the `installationId`. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
 
 ## Local development
 

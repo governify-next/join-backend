@@ -6,6 +6,7 @@ import { requireUser } from '../middlewares/userAuthentication.js';
 export const onboardingRoutes = Router();
 
 onboardingRoutes.get('/agreement-templates', requireUser, controller.agreementTemplates);
+onboardingRoutes.get('/organization-options', requireUser, controller.organizationOptions);
 onboardingRoutes.get('/join-link-organizations', requireUser, joinLinkController.organizations);
 onboardingRoutes.get(
     '/organizations/:organizationName/join-links',
@@ -20,7 +21,9 @@ onboardingRoutes.post(
 onboardingRoutes.get('/join-links/:id', requireUser, joinLinkController.get);
 onboardingRoutes.get('/integrations/github/callback', controller.githubCallback);
 onboardingRoutes.post('/onboardings', requireUser, controller.create);
+onboardingRoutes.get('/onboardings', requireUser, controller.list);
 onboardingRoutes.get('/onboardings/:id', requireUser, controller.get);
+onboardingRoutes.delete('/onboardings/:id', requireUser, controller.remove);
 onboardingRoutes.post(
     '/onboardings/:id/integrations/:provider/connect',
     requireUser,

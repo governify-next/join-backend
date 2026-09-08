@@ -17,6 +17,9 @@ const handle = (fn: () => Promise<unknown>, res: Response, next: NextFunction, s
 export const agreementTemplates = (_req: Request, res: Response, next: NextFunction) =>
     handle(() => onboardingService.getAgreementTemplates(), res, next);
 
+export const organizationOptions = (req: Request, res: Response, next: NextFunction) =>
+    handle(() => onboardingService.getOrganizationOptions(req.userAuth!), res, next);
+
 export const create = (req: Request, res: Response, next: NextFunction) =>
     handle(
         () =>
@@ -24,6 +27,7 @@ export const create = (req: Request, res: Response, next: NextFunction) =>
                 req.userAuth!,
                 req.body.agreementTemplateId,
                 req.body.joinLinkId,
+                (req.body.answers || {}) as OnboardingAnswers,
             ),
         res,
         next,
@@ -32,6 +36,12 @@ export const create = (req: Request, res: Response, next: NextFunction) =>
 
 export const get = (req: Request, res: Response, next: NextFunction) =>
     handle(() => onboardingService.getOwned(req.params.id, req.userAuth!), res, next);
+
+export const list = (req: Request, res: Response, next: NextFunction) =>
+    handle(() => onboardingService.listOwned(req.userAuth!), res, next);
+
+export const remove = (req: Request, res: Response, next: NextFunction) =>
+    handle(() => onboardingService.removeOwned(req.params.id, req.userAuth!), res, next);
 
 export const connectIntegration = (req: Request, res: Response, next: NextFunction) =>
     handle(

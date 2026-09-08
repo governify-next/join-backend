@@ -41,6 +41,12 @@ paths:
             responses:
                 '200':
                     description: Registry templates matched with Join modules, requirements and declarative mappings
+    /organization-options:
+        get:
+            summary: List organizations available as onboarding destinations
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Organizations where the current user is a member }
     /join-link-organizations:
         get:
             summary: List organizations where the current user can manage join links
@@ -71,7 +77,16 @@ paths:
                     application/json:
                         schema:
                             type: object
-                            required: [agreementTemplateId, agreementValidity, scopeName]
+                            required:
+                                [agreementTemplateId, agreementValidity, scopeNameFromRepository]
+                            oneOf:
+                                - required: [scopeName]
+                                  properties:
+                                      scopeNameFromRepository: { type: boolean, enum: [false] }
+                                - properties:
+                                      scopeNameFromRepository: { type: boolean, enum: [true] }
+                                  not:
+                                      required: [scopeName]
                             properties:
                                 agreementTemplateId: { type: string }
                                 agreementValidity:
@@ -81,7 +96,14 @@ paths:
                                         initial: { type: string }
                                         end: { type: string }
                                         timezone: { type: string }
-                                scopeName: { type: string }
+                                scopeName:
+                                    type: string
+                                    minLength: 3
+                                    maxLength: 96
+                                    pattern: '^[A-Za-z0-9_-]+$'
+                                scopeNameFromRepository:
+                                    type: boolean
+                                    description: Derive the Scope and agreement name from the repository selected during onboarding. Supported only by agreements that enroll a GitHub repository.
                                 editable:
                                     type: object
                                     properties:
@@ -89,6 +111,14 @@ paths:
                                         agreementTemplate: { type: boolean }
                                         agreementValidity: { type: boolean }
                                         scopeName: { type: boolean }
+                                resultOptions:
+                                    type: object
+                                    description: Controls which completed result data the onboarding API may return. All outputs default to enabled when omitted for compatibility with existing clients.
+                                    required: [dashboardURL, organizationURL, scopeAndAgreement]
+                                    properties:
+                                        dashboardURL: { type: boolean }
+                                        organizationURL: { type: boolean }
+                                        scopeAndAgreement: { type: boolean }
             responses:
                 '201': { description: Join link configuration created }
                 '403': { description: Organization administrator permissions are required }
@@ -103,6 +133,13 @@ paths:
                 '403': { description: The user is not a member of the configured organization }
                 '404': { description: Join link not found }
     /onboardings:
+        get:
+            summary: List the current user's onboardings
+            description: Returns summaries ordered by last update, including project and organization names, status, timestamps and enabled result links for completed onboardings. Internal provisioning data is omitted.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Owned onboarding summaries, newest update first }
+                '401': { description: Authentication required }
         post:
             summary: Create an onboarding session
             security: [{ BearerAuth: [] }]
@@ -118,6 +155,9 @@ paths:
                                 joinLinkId:
                                     type: string
                                     description: Required MongoDB identifier of the join link used to create this onboarding.
+                                answers:
+                                    type: object
+                                    description: Initial editable answers collected before the agreement is selected.
             responses:
                 '201':
                     description: Onboarding created with a validated join-link reference and configuration snapshot
@@ -130,9 +170,19 @@ paths:
               schema: { type: string }
         get:
             summary: Get an owned onboarding session
+            description: Of the completed outputs, the result includes only the dashboard URL, organization URL and Scope/Agreement data enabled by the join-link result options. Progress metadata remains available while internal provisioning data is never returned.
             security: [{ BearerAuth: [] }]
             responses:
                 '200': { description: Current session state }
+        delete:
+            summary: Delete an unfinished onboarding owned by the current user
+            description: Removes saved progress. Publishing stops at its next save if already running; resources already created in the ecosystem are retained. Completed onboardings cannot be deleted.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Onboarding deleted }
+                '400': { description: Invalid ID or completed onboarding }
+                '401': { description: Authentication required }
+                '404': { description: Onboarding not found or owned by another user }
     /onboardings/{id}/integrations/{provider}/connect:
         parameters:
             - in: path

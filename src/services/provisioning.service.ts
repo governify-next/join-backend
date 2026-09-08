@@ -108,11 +108,14 @@ const provision = async (onboarding: IOnboarding) => {
     const guaranteeTemplates = await agreementTemplates.listGuaranteeTemplates();
     let payload = onboarding.result?.materialized as MaterializedOnboarding | undefined;
     const needsScopeTree =
-        !onboarding.checkpoints.includes('scope') && !Array.isArray(payload?.scope.children);
+        !onboarding.checkpoints.includes('scope') &&
+        (!Array.isArray(payload?.scope.children) ||
+            readPath(payload?.scope, 'config.auditConfig') !== undefined ||
+            readPath(payload?.scope, 'config.name') !== readPath(payload?.scope, 'name'));
     if (!onboarding.checkpoints.includes('materialized') || !payload || needsScopeTree) {
         onboarding.onboardingDefinition = current.onboardingDefinition;
         payload = payload
-            ? { ...payload, scope: materializeScope(onboarding, payload.agreement) }
+            ? { ...payload, scope: materializeScope(onboarding) }
             : materialize(onboarding, guaranteeTemplates);
         await checkpoint(onboarding, 'materialized', { materialized: payload });
     }
@@ -251,13 +254,16 @@ export const runOnce = async () => {
     if (active) return;
     active = true;
     let onboarding: IOnboarding | null = null;
+    let leaseOwner: string | undefined;
     try {
         onboarding = await onboardingRepository.claimNext();
+        leaseOwner = onboarding?.leaseOwner;
         if (onboarding) await provision(onboarding);
     } catch (error) {
+        // Deleting an unfinished onboarding stops the worker at its next save.
+        if (onboarding && !(await onboardingRepository.findById(onboarding._id.toString()))) return;
         logger.error('Provisioning failed', error);
         if (onboarding) {
-            onboarding.status = 'FAILED';
             onboarding.failure = {
                 step:
                     PROVISIONING_CHECKPOINTS.find(
@@ -267,9 +273,8 @@ export const runOnce = async () => {
                 retryable: true,
                 occurredAt: new Date(),
             };
-            onboarding.leaseOwner = undefined;
-            onboarding.leaseUntil = undefined;
-            await onboarding.save();
+            // An atomic update also tolerates deletion while handling a failure.
+            await onboardingRepository.recordFailure(onboarding, leaseOwner);
         }
     } finally {
         active = false;

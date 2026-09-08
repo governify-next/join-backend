@@ -3,6 +3,7 @@ import type {
     OnboardingDefinition,
     PublicAgreementTemplate,
     RequirementDefinition,
+    ScopeChildMapping,
     SignatureMapping,
     ValueBinding,
 } from '../types/onboarding.js';
@@ -218,7 +219,7 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             validation: { minLength: 3, maxLength: 96, pattern: '^[A-Za-z0-9_-]+$' },
             ui: {
                 ...destinationStep,
-                label: 'Scope name',
+                label: 'Scope and agreement name',
                 help: 'Letters, numbers, underscores and hyphens only.',
             },
         }),
@@ -300,6 +301,49 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             } satisfies SignatureMapping;
         },
     );
+    const scopeChildren: ScopeChildMapping[] = [
+        {
+            answer: 'github_member_details',
+            fields: {
+                name: { repeatItem: 'scopeName' },
+                type: { literal: 'Members' },
+                'config.firstName': { repeatItem: 'firstName' },
+                'config.lastName': { repeatItem: 'lastName' },
+                'config.email': { repeatItem: 'email' },
+            },
+            children: [
+                {
+                    fields: {
+                        name: { literal: 'GitHub' },
+                        type: { literal: 'Identities' },
+                        'config.username': { repeatItem: 'username' },
+                        'config.userId': { repeatItem: 'id' },
+                    },
+                },
+            ],
+        },
+        {
+            fields: {
+                name: { literal: 'GitHub' },
+                type: { literal: 'Identities' },
+                'config.owner': { answer: 'github_repository', path: 'owner' },
+                'config.repository': { answer: 'github_repository', path: 'name' },
+                'config.repositoryId': { answer: 'github_repository', path: 'id' },
+            },
+            children: [
+                {
+                    fields: {
+                        name: { answer: 'github_project', path: 'title' },
+                        type: { literal: 'Projects' },
+                        'config.projectName': { answer: 'github_project', path: 'title' },
+                        'config.owner': { answer: 'github_project', path: 'owner' },
+                        'config.projectId': { answer: 'github_project', path: 'id' },
+                        'config.projectNumber': { answer: 'github_project', path: 'number' },
+                    },
+                },
+            ],
+        },
+    ];
 
     return {
         schemaVersion: '1.0',
@@ -348,51 +392,9 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                 organizationId: { answer: 'scope_organization', path: '_id' },
                 name: { answer: 'scope_name' },
                 type: { literal: 'Repositories' },
-                'config.owner': { answer: 'github_repository', path: 'owner' },
-                'config.repository': { answer: 'github_repository', path: 'name' },
-                'config.credentialRef': { integration: 'github' },
-                'config.auditConfig.join.provider': { literal: 'join' },
-                'config.auditConfig.join.repository': {
-                    answer: 'github_repository',
-                    path: 'fullName',
-                },
-                'config.auditConfig.join.repositoryId': {
-                    answer: 'github_repository',
-                    path: 'id',
-                },
-                'config.auditConfig.join.statusMapping.inProgress': {
-                    answer: columns.inProgress,
-                    transform: 'pluckName',
-                },
-                'config.auditConfig.join.statusMapping.inReview': {
-                    answer: columns.inReview,
-                    transform: 'pluckName',
-                },
-                'config.auditConfig.join.statusMapping.done': {
-                    answer: columns.done,
-                    transform: 'pluckName',
-                },
-                'config.auditConfig.join.trackedUsers': {
-                    answer: 'github_users',
-                    transform: 'pluckUsername',
-                },
-                'config.auditConfig.join.memberDetails': {
-                    answer: 'github_member_details',
-                },
+                'config.name': { answer: 'scope_name' },
             },
-            scopeChildren: [
-                {
-                    answer: 'github_member_details',
-                    fields: {
-                        name: { repeatItem: 'username' },
-                        type: { literal: 'Members' },
-                        'config.username': { repeatItem: 'username' },
-                        'config.firstName': { repeatItem: 'firstName' },
-                        'config.lastName': { repeatItem: 'lastName' },
-                        'config.email': { repeatItem: 'email' },
-                    },
-                },
-            ],
+            scopeChildren,
         },
     };
 };
