@@ -133,6 +133,13 @@ paths:
                 '403': { description: The user is not a member of the configured organization }
                 '404': { description: Join link not found }
     /onboardings:
+        get:
+            summary: List the current user's onboardings
+            description: Returns summaries ordered by last update, including project and organization names, status, timestamps and enabled result links for completed onboardings. Internal provisioning data is omitted.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Owned onboarding summaries, newest update first }
+                '401': { description: Authentication required }
         post:
             summary: Create an onboarding session
             security: [{ BearerAuth: [] }]
@@ -167,6 +174,15 @@ paths:
             security: [{ BearerAuth: [] }]
             responses:
                 '200': { description: Current session state }
+        delete:
+            summary: Delete an unfinished onboarding owned by the current user
+            description: Removes saved progress. Publishing stops at its next save if already running; resources already created in the ecosystem are retained. Completed onboardings cannot be deleted.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Onboarding deleted }
+                '400': { description: Invalid ID or completed onboarding }
+                '401': { description: Authentication required }
+                '404': { description: Onboarding not found or owned by another user }
     /onboardings/{id}/integrations/{provider}/connect:
         parameters:
             - in: path

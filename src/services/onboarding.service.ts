@@ -19,10 +19,53 @@ import {
 } from './requirement.service.js';
 import { TOTAL_PROVISIONING_CHECKPOINTS } from './provisioning.service.js';
 import * as joinLinks from './joinLink.service.js';
+import { bootEnv } from '../config/bootConfig.js';
+import { buildClientOnboardingResult } from '../utils/onboardingResult.js';
 
 export const getAgreementTemplates = () => agreementTemplates.listPublic();
 
 export const getOrganizationOptions = (user: AuthenticatedUser) => organizationOptions(user);
+
+export const listOwned = async (user: AuthenticatedUser) => {
+    const onboardings = await onboardingRepository.listOwned(user.id);
+    return onboardings.map((onboarding) => {
+        const result =
+            onboarding.status === 'COMPLETED'
+                ? buildClientOnboardingResult({
+                      result: onboarding.result || {},
+                      configuration: onboarding.joinLinkConfiguration,
+                      answers: onboarding.answers,
+                      governifyFrontendURL: bootEnv.GOVERNIFY_FRONTEND_URL,
+                  })
+                : undefined;
+        return {
+            _id: onboarding._id,
+            status: onboarding.status,
+            scopeName: String(onboarding.answers?.scope_name || ''),
+            organizationName: String(
+                readPath(onboarding.answers?.scope_organization, 'displayName') ||
+                    readPath(onboarding.answers?.scope_organization, 'name') ||
+                    '',
+            ),
+            agreementTemplate: {
+                name: onboarding.agreementTemplate?.name || '',
+                displayName: onboarding.agreementTemplate?.displayName || '',
+            },
+            createdAt: onboarding.createdAt,
+            updatedAt: onboarding.updatedAt,
+            result,
+        };
+    });
+};
+
+export const removeOwned = async (id: string, user: AuthenticatedUser) => {
+    if (!mongoose.isValidObjectId(id)) throw new ValidationError('Invalid onboarding ID');
+    const deleted = await onboardingRepository.deleteUnfinishedOwned(id, user.id);
+    if (deleted) return { _id: deleted._id };
+    const onboarding = await onboardingRepository.findOwned(id, user.id);
+    if (!onboarding) throw new NotFoundError('Onboarding not found');
+    throw new ValidationError('Completed onboardings cannot be deleted');
+};
 
 const requiredIntegrations = (onboarding: IOnboarding) => onboarding.requiredIntegrations || [];
 

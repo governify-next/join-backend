@@ -254,13 +254,16 @@ export const runOnce = async () => {
     if (active) return;
     active = true;
     let onboarding: IOnboarding | null = null;
+    let leaseOwner: string | undefined;
     try {
         onboarding = await onboardingRepository.claimNext();
+        leaseOwner = onboarding?.leaseOwner;
         if (onboarding) await provision(onboarding);
     } catch (error) {
+        // Deleting an unfinished onboarding stops the worker at its next save.
+        if (onboarding && !(await onboardingRepository.findById(onboarding._id.toString()))) return;
         logger.error('Provisioning failed', error);
         if (onboarding) {
-            onboarding.status = 'FAILED';
             onboarding.failure = {
                 step:
                     PROVISIONING_CHECKPOINTS.find(
@@ -270,9 +273,8 @@ export const runOnce = async () => {
                 retryable: true,
                 occurredAt: new Date(),
             };
-            onboarding.leaseOwner = undefined;
-            onboarding.leaseUntil = undefined;
-            await onboarding.save();
+            // An atomic update also tolerates deletion while handling a failure.
+            await onboardingRepository.recordFailure(onboarding, leaseOwner);
         }
     } finally {
         active = false;

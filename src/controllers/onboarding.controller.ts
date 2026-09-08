@@ -37,6 +37,12 @@ export const create = (req: Request, res: Response, next: NextFunction) =>
 export const get = (req: Request, res: Response, next: NextFunction) =>
     handle(() => onboardingService.getOwned(req.params.id, req.userAuth!), res, next);
 
+export const list = (req: Request, res: Response, next: NextFunction) =>
+    handle(() => onboardingService.listOwned(req.userAuth!), res, next);
+
+export const remove = (req: Request, res: Response, next: NextFunction) =>
+    handle(() => onboardingService.removeOwned(req.params.id, req.userAuth!), res, next);
+
 export const connectIntegration = (req: Request, res: Response, next: NextFunction) =>
     handle(
         () =>

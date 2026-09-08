@@ -15,6 +15,7 @@ The currently supported catalog contains one definition for Registry's public `C
 - Resolve the installation from the selected repository, then enumerate Projects V2 boards, status fields and collaborators.
 - Retain the mocked ZenHub adapter for future onboarding definitions without exposing it in the current Berkeley flow.
 - Persist resumable onboarding sessions, provisioning checkpoints and completed results; the same source may be onboarded more than once.
+- List the authenticated user's onboardings with enabled result links, and delete unfinished sessions. Deletion stops active publishing at its next save and retains any ecosystem resources already created.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
 - Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; start an asynchronous state generation; and create an hourly Director task.
