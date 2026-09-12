@@ -16,7 +16,7 @@ type DefinitionFactory = (
 type GitHubColumn = 'inProgress' | 'inReview' | 'done';
 type MetricRule = {
     column?: GitHubColumn;
-    member?: boolean;
+    member?: 'username' | 'usernames';
     process?: Record<string, unknown>;
 };
 
@@ -40,9 +40,10 @@ const literalBindings = (values: Record<string, unknown>) =>
         Object.entries(values).map(([key, literal]) => [key, { literal } satisfies ValueBinding]),
     );
 
-// Complete Join definition for Registry Agreement Template CS169L-Sp26.
-const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplates) => {
+// Complete Join definition for Registry Agreement Template tpa-UCLM.
+const tpaUclm: DefinitionFactory = (agreementTemplate, guaranteeTemplates) => {
     const projectFetcher = 'FT_GQL_GITHUB_PROJECTV2_ITEMS';
+    const basicProjectFetcher = 'FT_GQL_GITHUB_PROJECTV2_ITEMS_BASIC';
     const pullRequestFetcher = 'FT_GQL_GITHUB_PULL_REQUESTS';
     const columns: Record<GitHubColumn, string> = {
         inProgress: 'github_in_progress_columns',
@@ -63,30 +64,26 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             process: { status: 'MERGED' },
         },
         COUNT_DONE_ISSUES: { column: 'done' },
-        COUNT_INPROGRESSISSUES_MEMBER: { column: 'inProgress', member: true },
-        COUNT_DONEISSUES_MEMBER: { column: 'done', member: true },
+        COUNT_INPROGRESSISSUES_MEMBER: { column: 'inProgress', member: 'usernames' },
+        COUNT_DONEISSUES_MEMBER: { column: 'done', member: 'usernames' },
         COUNT_MERGED_PR_WITH_POSITIVE_REVIEWS_TEAM: {
             process: { reviewState: 'APPROVED' },
         },
         COUNT_PR_MERGED_TEAM: {},
         COUNT_MERGED_PR_WITH_POSITIVE_REVIEWS_MEMBER: {
-            member: true,
+            member: 'username',
             process: { reviewState: 'APPROVED' },
         },
-        COUNT_PR_MERGED_MEMBER: { member: true },
-        COUNT_PRS_WITH_AT_LEAST_ONE_COMMENT_OR_ONE_REVIEW_COMMENT_BY_MEMBER: {
-            member: true,
-        },
-        COUNT_PR: {},
+        COUNT_PR_MERGED_MEMBER: { member: 'username' },
+    };
+    const projectFields: Record<string, ValueBinding> = {
+        projectIds: { answer: 'github_project', path: 'id', transform: 'toArray' },
+        statusFieldId: { answer: 'github_status_field', path: 'id' },
+        credentialRef: { integration: 'github' },
     };
     const fetchers: Record<string, Record<string, ValueBinding>> = {
-        [projectFetcher]: {
-            owner: { answer: 'github_project', path: 'owner' },
-            repository: { answer: 'github_repository', path: 'name' },
-            projectNumber: { answer: 'github_project', path: 'number' },
-            statusFieldId: { answer: 'github_status_field', path: 'id' },
-            credentialRef: { integration: 'github' },
-        },
+        [projectFetcher]: projectFields,
+        [basicProjectFetcher]: projectFields,
         [pullRequestFetcher]: {
             owner: { answer: 'github_repository', path: 'owner' },
             repository: { answer: 'github_repository', path: 'name' },
@@ -102,7 +99,7 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
     const projectStep = step(
         20,
         'GitHub Project',
-        'Select the Project V2 board, status field and workflow columns.',
+        'Select the Project V2 board, status field and workflow columns. Only issues of type Task are measured.',
     );
     const membersStep = step(
         30,
@@ -227,21 +224,21 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
             id: 'agreement_validity_start',
             module: 'agreement',
             type: 'datetime',
-            default: 'now',
+            default: { literal: '2026-09-01T00:00:00.000Z' },
             ui: { ...validityStep, label: 'Validity starts' },
         }),
         required({
             id: 'agreement_validity_end',
             module: 'agreement',
             type: 'datetime',
-            default: 'oneYearFromNow',
+            default: { literal: '2026-12-31T23:59:59.000Z' },
             ui: { ...validityStep, label: 'Validity ends' },
         }),
         required({
             id: 'agreement_timezone',
             module: 'agreement',
             type: 'timezone',
-            default: 'browserTimezone',
+            default: { literal: 'Europe/Madrid' },
             ui: { ...validityStep, label: 'IANA timezone' },
         }),
     ].sort((left, right) => left.ui.order - right.ui.order);
@@ -258,7 +255,7 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                 const rule = metrics[metric.metricName];
                 if (!rule)
                     throw new Error(
-                        `CS169L-Sp26 does not support metric '${metric.metricName}' from '${guaranteeTemplateName}'`,
+                        `tpa-UCLM does not support metric '${metric.metricName}' from '${guaranteeTemplateName}'`,
                     );
                 const registryFetchers = metric.metricConfig.event.fetcherConfigs;
                 if (!registryFetchers.length)
@@ -270,7 +267,7 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                         const fields = fetchers[fetcherId];
                         if (!fields)
                             throw new Error(
-                                `CS169L-Sp26 does not support fetcher '${fetcherId}' from metric '${metric.metricName}'`,
+                                `tpa-UCLM does not support fetcher '${fetcherId}' from metric '${metric.metricName}'`,
                             );
                         return { fetcherId, fields };
                     }),
@@ -292,10 +289,20 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
                                       answer: columns[rule.column],
                                       transform: 'pluckName' as const,
                                   },
+                                  type: { literal: 'Task' },
                               }
                             : {}),
                         ...literalBindings(rule.process || {}),
-                        ...(member ? { username: { repeatItem: 'username' } as const } : {}),
+                        ...(rule.member
+                            ? {
+                                  [rule.member]: {
+                                      repeatItem: 'username',
+                                      ...(rule.member === 'usernames'
+                                          ? { transform: 'toArray' as const }
+                                          : {}),
+                                  },
+                              }
+                            : {}),
                     },
                 })),
             } satisfies SignatureMapping;
@@ -401,10 +408,13 @@ const cs169lSpring2026: DefinitionFactory = (agreementTemplate, guaranteeTemplat
 
 // Adding another Agreement Template means adding another self-contained factory here.
 export const ONBOARDING_DEFINITIONS: Record<string, DefinitionFactory> = {
-    'CS169L-Sp26': cs169lSpring2026,
+    'tpa-UCLM': tpaUclm,
 };
 
 export const createOnboardingDefinition = (
     agreementTemplate: PublicAgreementTemplate,
     guaranteeTemplates: GuaranteeTemplate[],
-) => ONBOARDING_DEFINITIONS[agreementTemplate.name]?.(agreementTemplate, guaranteeTemplates);
+) =>
+    Object.hasOwn(ONBOARDING_DEFINITIONS, agreementTemplate.name)
+        ? ONBOARDING_DEFINITIONS[agreementTemplate.name](agreementTemplate, guaranteeTemplates)
+        : undefined;

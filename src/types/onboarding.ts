@@ -155,7 +155,7 @@ export interface RequirementDefinition {
         arguments?: Record<string, AnswerReference>;
         options?: ResourceOption[];
     };
-    default?: 'now' | 'oneYearFromNow' | 'browserTimezone';
+    default?: 'now' | 'oneYearFromNow' | 'browserTimezone' | { literal: string };
     validation?: {
         minLength?: number;
         maxLength?: number;
@@ -176,7 +176,7 @@ export interface RequirementDefinition {
 export interface AnswerReference {
     answer: string;
     path?: string;
-    transform?: 'identity' | 'pluckName' | 'pluckNumber' | 'pluckUsername' | 'toIso';
+    transform?: 'identity' | 'pluckName' | 'pluckNumber' | 'pluckUsername' | 'toIso' | 'toArray';
     timezoneAnswer?: string;
 }
 
@@ -191,6 +191,7 @@ export interface IntegrationReference {
 
 export interface RepeatItemReference {
     repeatItem: string;
+    transform?: 'toArray';
 }
 
 export type ValueBinding =

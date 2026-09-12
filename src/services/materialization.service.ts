@@ -34,7 +34,10 @@ const resolveBinding = (
     repeatItem?: unknown,
 ) => {
     if ('literal' in binding) return binding.literal;
-    if ('repeatItem' in binding) return readPath(repeatItem, binding.repeatItem);
+    if ('repeatItem' in binding) {
+        const value = readPath(repeatItem, binding.repeatItem);
+        return binding.transform === 'toArray' ? [value] : value;
+    }
     if ('integration' in binding) {
         if (binding.integration === 'github') {
             const installationId = onboarding.integrations?.github?.installationId;
@@ -50,6 +53,9 @@ const resolveBinding = (
 
     let value = readPath(answers[binding.answer], binding.path);
     switch (binding.transform) {
+        case 'toArray':
+            value = [value];
+            break;
         case 'pluckName':
             value = pluck(value, 'name');
             break;
