@@ -306,6 +306,7 @@ export const ensureAgreementVersion = async (
     const createPayload = await prepareForCreate();
     const signatures = createPayload.agreement.signatures.map((signature) => ({
         guaranteeName: signature.guaranteeTemplateName,
+        visualizationConfig: signature.visualizationConfig,
         metrics: signature.metrics,
     }));
     const created = await requestJson<Record<string, unknown>>(versionsUrl, {

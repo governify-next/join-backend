@@ -259,6 +259,9 @@ export type OnboardingAnswers = Record<string, unknown>;
 
 export interface SignatureInput {
     guaranteeTemplateName: string;
+    visualizationConfig: {
+        label: string;
+    };
     metrics: {
         metricName: string;
         fetcherConfigs: {

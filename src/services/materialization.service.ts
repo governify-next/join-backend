@@ -75,6 +75,20 @@ const resolveBinding = (
     return value;
 };
 
+const memberSignatureLabel = (answers: OnboardingAnswers, username: unknown) => {
+    const details = answers.github_member_details;
+    const member = Array.isArray(details)
+        ? details.find((detail) => isRecord(detail) && detail.username === username)
+        : undefined;
+    const firstName = typeof member?.firstName === 'string' ? member.firstName.trim() : '';
+    const lastName = typeof member?.lastName === 'string' ? member.lastName.trim() : '';
+    if (!firstName || !lastName)
+        throw new ValidationError(
+            `Signature member '${String(username)}' requires a first name and last name`,
+        );
+    return `${firstName} ${lastName}`;
+};
+
 const buildSignatures = (
     onboarding: IOnboarding,
     guaranteeTemplates: GuaranteeTemplate[],
@@ -112,6 +126,12 @@ const buildSignatures = (
 
         return repeatItems.map((repeatItem) => ({
             guaranteeTemplateName: signatureMapping.guaranteeTemplateName,
+            visualizationConfig: {
+                label:
+                    subject.kind === 'member'
+                        ? memberSignatureLabel(answers, readPath(repeatItem, subject.itemPath))
+                        : 'Team',
+            },
             metrics: signatureMapping.metrics.map((metricMapping) => {
                 const metric = guaranteeTemplate.metrics.find(
                     ({ metricName }) => metricName === metricMapping.metricName,
