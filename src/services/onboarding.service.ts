@@ -15,6 +15,7 @@ import {
     readPath,
     resolveOptions,
     validateAnswers,
+    validateDraftAnswers,
     validatePartialAnswers,
 } from './requirement.service.js';
 import { TOTAL_PROVISIONING_CHECKPOINTS } from './provisioning.service.js';
@@ -283,7 +284,7 @@ export const saveAnswers = async (
         answers,
     );
     joinLinks.validateLockedAnswers(onboarding.joinLinkConfiguration, resolvedAnswers);
-    validatePartialAnswers(onboarding, resolvedAnswers);
+    validateDraftAnswers(onboarding, resolvedAnswers);
     selectRepositoryInstallation(onboarding, resolvedAnswers);
     onboarding.answers = resolvedAnswers;
     onboarding.status = 'CONFIGURING';

@@ -221,21 +221,29 @@ const resourceIdentity = (value: unknown) => {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const validateMemberDetails = (requirement: RequirementDefinition, value: unknown) => {
+const validateMemberDetails = (
+    requirement: RequirementDefinition,
+    value: unknown,
+    draft = false,
+) => {
     if (!Array.isArray(value))
         throw new ValidationError(`'${requirement.ui.label}' must be a list`);
-    if (value.length < (requirement.validation?.minItems || 0))
+    if (!draft && value.length < (requirement.validation?.minItems || 0))
         throw new ValidationError(`Complete '${requirement.ui.label}'`);
 
     const usernames = new Set<string>();
     for (const item of value) {
         if (!isRecord(item))
             throw new ValidationError(`'${requirement.ui.label}' contains an invalid member`);
+        for (const field of ['username', 'firstName', 'lastName', 'email']) {
+            if (item[field] !== undefined && typeof item[field] !== 'string')
+                throw new ValidationError(`'${requirement.ui.label}' contains an invalid ${field}`);
+        }
         const username = typeof item.username === 'string' ? item.username.trim() : '';
         const firstName = typeof item.firstName === 'string' ? item.firstName.trim() : '';
         const lastName = typeof item.lastName === 'string' ? item.lastName.trim() : '';
         const email = typeof item.email === 'string' ? item.email.trim() : '';
-        if (!username || !firstName || !lastName || !emailPattern.test(email))
+        if (!username || (!draft && (!firstName || !lastName || !emailPattern.test(email))))
             throw new ValidationError(
                 `Complete first name, last name and a valid e-mail address for every tracked member`,
             );
@@ -245,19 +253,26 @@ const validateMemberDetails = (requirement: RequirementDefinition, value: unknow
     }
 };
 
-const validateValue = (requirement: RequirementDefinition, value: unknown) => {
+const validateValue = (requirement: RequirementDefinition, value: unknown, draft = false) => {
     if (!requirement.required && (value === undefined || value === '')) return;
     if (requirement.type === 'member-details') {
-        validateMemberDetails(requirement, value);
+        validateMemberDetails(requirement, value, draft);
         return;
     }
     if (requirement.cardinality === 'many') {
         if (!Array.isArray(value))
             throw new ValidationError(`'${requirement.ui.label}' must be a list`);
-        if (value.length < (requirement.validation?.minItems || 0))
+        if (!draft && value.length < (requirement.validation?.minItems || 0))
             throw new ValidationError(`Select at least one value for '${requirement.ui.label}'`);
         if (new Set(value.map(resourceIdentity)).size !== value.length)
             throw new ValidationError(`'${requirement.ui.label}' contains duplicate values`);
+        return;
+    }
+    // Drafts may contain unfinished text/date input. Keep structural validation,
+    // and enforce completeness and formats when configuration is submitted.
+    if (draft && requirement.type !== 'resource') {
+        if (typeof value !== 'string')
+            throw new ValidationError(`'${requirement.ui.label}' must be text`);
         return;
     }
     if (value === undefined || value === null || value === '')
@@ -284,9 +299,10 @@ const validateValue = (requirement: RequirementDefinition, value: unknown) => {
         throw new ValidationError(`'${requirement.ui.label}' is not a valid IANA timezone`);
 };
 
-export const validatePartialAnswers = (
+const validateKnownAnswers = (
     onboarding: Pick<IOnboarding, 'onboardingDefinition'>,
     answers: OnboardingAnswers,
+    draft: boolean,
 ) => {
     const requirements = new Map(
         onboarding.onboardingDefinition.requirements.map((requirement) => [
@@ -297,7 +313,7 @@ export const validatePartialAnswers = (
     for (const [id, value] of Object.entries(answers)) {
         const requirement = requirements.get(id);
         if (!requirement) throw new ValidationError(`Unknown onboarding answer '${id}'`);
-        validateValue(requirement, value);
+        validateValue(requirement, value, draft);
     }
     for (const requirement of requirements.values()) {
         if (requirement.type !== 'member-details' || answers[requirement.id] === undefined)
@@ -312,12 +328,22 @@ export const validatePartialAnswers = (
             (member) => String(member.username),
         );
         if (
-            selectedUsernames.length !== detailUsernames.length ||
-            selectedUsernames.some((username) => !detailUsernames.includes(username))
+            (!draft && selectedUsernames.length !== detailUsernames.length) ||
+            detailUsernames.some((username) => !selectedUsernames.includes(username))
         )
             throw new ValidationError(`Provide member details for every selected member`);
     }
 };
+
+export const validatePartialAnswers = (
+    onboarding: Pick<IOnboarding, 'onboardingDefinition'>,
+    answers: OnboardingAnswers,
+) => validateKnownAnswers(onboarding, answers, false);
+
+export const validateDraftAnswers = (
+    onboarding: Pick<IOnboarding, 'onboardingDefinition'>,
+    answers: OnboardingAnswers,
+) => validateKnownAnswers(onboarding, answers, true);
 
 export const validateAnswers = async (
     onboarding: IOnboarding,
