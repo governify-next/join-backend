@@ -1,225 +1,270 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
-    title: Express API Boilerplatesss
-    version: 1.0.0
-    description: A simple Express API with TypeScript
+    title: Governify Join API
+    version: 1.5.0
+    description: Declarative, resumable onboarding using Registry's public template catalog and real ecosystem provisioning.
 servers:
-    - url: /
+    - url: /api/v1
+components:
+    securitySchemes:
+        BearerAuth:
+            type: http
+            scheme: bearer
+            bearerFormat: JWT
+    schemas:
+        StandardResponse:
+            type: object
+            properties:
+                success: { type: boolean }
+                message: { type: string }
+                httpStatus: { type: integer }
+                appCode: { type: string }
+                data: {}
 paths:
     /health:
         get:
-            tags:
-                - Health
-            summary: Health check
+            servers: [{ url: / }]
+            summary: Liveness check
             responses:
-                '200':
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    status:
-                                        type: string
-    /api/v1/users:
+                '200': { description: Process is alive }
+    /ready:
         get:
-            tags:
-                - Users
-            summary: List all users
+            servers: [{ url: / }]
+            summary: Readiness check
+            responses:
+                '200': { description: MongoDB is connected }
+                '503': { description: MongoDB is not connected }
+    /agreement-templates:
+        get:
+            summary: List supported public Registry Agreement Templates and their onboarding definitions
+            security: [{ BearerAuth: [] }]
             responses:
                 '200':
-                    description: A list of users
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    data:
-                                        type: array
-                                        items:
-                                            $ref: '#/components/schemas/User'
-                                    message:
-                                        type: string
-                                    success:
-                                        type: boolean
+                    description: Registry templates matched with Join modules, requirements and declarative mappings
+    /organization-options:
+        get:
+            summary: List organizations available as onboarding destinations
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Organizations where the current user is a member }
+    /join-link-organizations:
+        get:
+            summary: List organizations where the current user can manage join links
+            description: Returns organizations administered by the current user. System superadministrators receive every organization.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Administrable organizations ordered by display name }
+    /organizations/{organizationName}/join-links:
+        parameters:
+            - in: path
+              name: organizationName
+              required: true
+              schema: { type: string }
+        get:
+            summary: List join links generated for an organization
+            description: Requires organization administrator permissions.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Join links ordered from newest to oldest }
+                '403': { description: Organization administrator permissions are required }
         post:
-            tags:
-                - Users
-            summary: Create a new user
+            summary: Generate an organization join link
+            description: Stores predefined values server-side and returns a MongoDB identifier for the URL.
+            security: [{ BearerAuth: [] }]
             requestBody:
                 required: true
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/UserInput'
+                            type: object
+                            required:
+                                [agreementTemplateId, agreementValidity, scopeNameFromRepository]
+                            oneOf:
+                                - required: [scopeName]
+                                  properties:
+                                      scopeNameFromRepository: { type: boolean, enum: [false] }
+                                - properties:
+                                      scopeNameFromRepository: { type: boolean, enum: [true] }
+                                  not:
+                                      required: [scopeName]
+                            properties:
+                                agreementTemplateId: { type: string }
+                                agreementValidity:
+                                    type: object
+                                    required: [initial, end, timezone]
+                                    properties:
+                                        initial: { type: string }
+                                        end: { type: string }
+                                        timezone: { type: string }
+                                scopeName:
+                                    type: string
+                                    minLength: 3
+                                    maxLength: 96
+                                    pattern: '^[A-Za-z0-9_-]+$'
+                                scopeNameFromRepository:
+                                    type: boolean
+                                    description: Derive the Scope and agreement name from the repository selected during onboarding. Supported only by agreements that enroll a GitHub repository.
+                                editable:
+                                    type: object
+                                    properties:
+                                        organization: { type: boolean }
+                                        agreementTemplate: { type: boolean }
+                                        agreementValidity: { type: boolean }
+                                        scopeName: { type: boolean }
+                                resultOptions:
+                                    type: object
+                                    description: Controls which completed result data the onboarding API may return. All outputs default to enabled when omitted for compatibility with existing clients.
+                                    required: [dashboardURL, organizationURL, scopeAndAgreement]
+                                    properties:
+                                        dashboardURL: { type: boolean }
+                                        organizationURL: { type: boolean }
+                                        scopeAndAgreement: { type: boolean }
+            responses:
+                '201': { description: Join link configuration created }
+                '403': { description: Organization administrator permissions are required }
+    /join-links/{id}:
+        get:
+            summary: Resolve a join link configuration
+            description: The current user must be a member of the configured organization.
+            security: [{ BearerAuth: [] }]
+            parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+            responses:
+                '200': { description: Predefined values and editability flags }
+                '403': { description: The user is not a member of the configured organization }
+                '404': { description: Join link not found }
+    /onboardings:
+        get:
+            summary: List the current user's onboardings
+            description: Returns summaries ordered by last update, including project and organization names, status, timestamps and enabled result links for completed onboardings. Internal provisioning data is omitted.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Owned onboarding summaries, newest update first }
+                '401': { description: Authentication required }
+        post:
+            summary: Create an onboarding session
+            security: [{ BearerAuth: [] }]
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [joinLinkId]
+                            properties:
+                                agreementTemplateId: { type: string }
+                                joinLinkId:
+                                    type: string
+                                    description: Required MongoDB identifier of the join link used to create this onboarding.
+                                answers:
+                                    type: object
+                                    description: Initial editable answers collected before the agreement is selected.
             responses:
                 '201':
-                    description: User created
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    data:
-                                        $ref: '#/components/schemas/User'
-                                    message:
-                                        type: string
-                                    success:
-                                        type: boolean
-                '409':
-                    description: Email already exists
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Error'
-                '500':
-                    description: Internal server error
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Error'
-    /api/v1/users/{id}:
+                    description: Onboarding created with a validated join-link reference and configuration snapshot
+                '400': { description: A join link is required }
+    /onboardings/{id}:
+        parameters:
+            - in: path
+              name: id
+              required: true
+              schema: { type: string }
         get:
-            tags:
-                - Users
-            summary: Get user by ID
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                      type: string
-                  description: User ID (Mongo ObjectId)
+            summary: Get an owned onboarding session
+            description: Of the completed outputs, the result includes only the dashboard URL, organization URL and Scope/Agreement data enabled by the join-link result options. Progress metadata remains available while internal provisioning data is never returned.
+            security: [{ BearerAuth: [] }]
             responses:
-                '200':
-                    description: User found
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    data:
-                                        $ref: '#/components/schemas/User'
-                                    message:
-                                        type: string
-                                    success:
-                                        type: boolean
-                '404':
-                    description: User not found
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Error'
-        put:
-            tags:
-                - Users
-            summary: Update user by ID
+                '200': { description: Current session state }
+        delete:
+            summary: Delete an unfinished onboarding owned by the current user
+            description: Removes saved progress. Publishing stops at its next save if already running; resources already created in the ecosystem are retained. Completed onboardings cannot be deleted.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Onboarding deleted }
+                '400': { description: Invalid ID or completed onboarding }
+                '401': { description: Authentication required }
+                '404': { description: Onboarding not found or owned by another user }
+    /onboardings/{id}/integrations/{provider}/connect:
+        parameters:
+            - in: path
+              name: id
+              required: true
+              schema: { type: string }
+            - in: path
+              name: provider
+              required: true
+              schema: { type: string, enum: [github, zenhub] }
+        post:
+            summary: Connect a required integration
+            description: Starts GitHub OAuth-first installation discovery or immediately connects the mocked ZenHub adapter.
+            security: [{ BearerAuth: [] }]
+            responses:
+                '200': { description: Authorization URL }
+    /integrations/github/callback:
+        get:
+            summary: Discover or complete a GitHub App installation
+            description: Existing installations return to Join immediately. If none are accessible, Join redirects through GitHub installation and verifies the result through OAuth.
             parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                      type: string
-                  description: User ID (Mongo ObjectId)
+                - { in: query, name: state, required: true, schema: { type: string } }
+                - { in: query, name: installation_id, required: false, schema: { type: integer } }
+                - { in: query, name: code, required: true, schema: { type: string } }
+            responses:
+                '303': { description: Redirect to the join frontend }
+    /onboardings/{id}/requirements/{requirementId}/options:
+        post:
+            summary: Resolve options for one declarative requirement
+            description: Dispatches to the allow-listed GitHub, ZenHub mock, Scope Manager or static adapter operation.
+            security: [{ BearerAuth: [] }]
+            parameters:
+                - { in: path, name: id, required: true, schema: { type: string } }
+                - { in: path, name: requirementId, required: true, schema: { type: string } }
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                answers: { type: object, additionalProperties: true }
+            responses: { '200': { description: Display-safe resource options } }
+    /onboardings/{id}/configuration:
+        put:
+            summary: Validate and save guided onboarding configuration
+            security: [{ BearerAuth: [] }]
+            parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
             requestBody:
                 required: true
                 content:
                     application/json:
                         schema:
-                            $ref: '#/components/schemas/UserInput'
-            responses:
-                '200':
-                    description: User updated
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    data:
-                                        $ref: '#/components/schemas/User'
-                                    message:
-                                        type: string
-                                    success:
-                                        type: boolean
-                '404':
-                    description: User not found
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Error'
-        delete:
-            tags:
-                - Users
-            summary: Delete user by ID
-            parameters:
-                - in: path
-                  name: id
-                  required: true
-                  schema:
-                      type: string
-                  description: User ID (Mongo ObjectId)
-            responses:
-                '200':
-                    description: User deleted
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    data:
-                                        type: 'null'
-                                    message:
-                                        type: string
-                                    success:
-                                        type: boolean
-                '404':
-                    description: User not found
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Error'
-
-components:
-    schemas:
-        User:
-            type: object
-            required:
-                - _id
-                - name
-                - email
-            properties:
-                _id:
-                    type: string
-                    description: MongoDB ObjectId
-                name:
-                    type: string
-                email:
-                    type: string
-                password:
-                    type: string
-                createdAt:
-                    type: string
-                    format: date-time
-                updatedAt:
-                    type: string
-                    format: date-time
-        UserInput:
-            type: object
-            required:
-                - name
-                - email
-                - password
-            properties:
-                name:
-                    type: string
-                email:
-                    type: string
-                password:
-                    type: string
-        Error:
-            type: object
-            properties:
-                error:
-                    type: string
-                message:
-                    type: string
+                            type: object
+                            required: [answers]
+                            properties:
+                                answers: { type: object, additionalProperties: true }
+            responses: { '200': { description: Declarative answers validated and saved } }
+    /onboardings/{id}/answers:
+        patch:
+            summary: Save partial wizard answers for resumption
+            security: [{ BearerAuth: [] }]
+            parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required: [answers]
+                            properties:
+                                answers: { type: object, additionalProperties: true }
+            responses: { '200': { description: Partial answers saved } }
+    /onboardings/{id}/provision:
+        post:
+            summary: Queue asynchronous ecosystem provisioning
+            description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template, Scope, Agreement collection and version; and supplies one initial GitHub installation token with its installation ID and expiration. Join then starts state generation, schedules hourly calculations and creates or updates the Reporter dashboard; Fetcher owns later token renewal.
+            security: [{ BearerAuth: [] }]
+            parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+            responses: { '202': { description: Provisioning queued } }
+    /onboardings/{id}/retry:
+        post:
+            summary: Retry provisioning from its last checkpoint
+            security: [{ BearerAuth: [] }]
+            parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+            responses: { '202': { description: Retry queued } }

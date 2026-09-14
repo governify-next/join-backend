@@ -1,0 +1,88 @@
+import mongoose, { Document, Schema, Types } from 'mongoose';
+import type {
+    JoinLinkConfiguration,
+    OnboardingAnswers,
+    OnboardingDefinition,
+    OnboardingStatus,
+    IntegrationProvider,
+    PublicAgreementTemplate,
+} from '../types/onboarding.js';
+import type { GitHubInstallation } from '../providers/provider.types.js';
+import { bootEnv } from '../config/bootConfig.js';
+import { buildClientOnboardingResult } from '../utils/onboardingResult.js';
+
+export interface IOnboarding extends Document {
+    userId: string;
+    username: string;
+    requiredIntegrations: IntegrationProvider[];
+    agreementTemplate: PublicAgreementTemplate;
+    onboardingDefinition: OnboardingDefinition;
+    joinLinkId?: Types.ObjectId;
+    joinLinkConfiguration?: JoinLinkConfiguration;
+    status: OnboardingStatus;
+    integrations?: {
+        github?: {
+            installationId?: number;
+            accountLogin?: string;
+            accountType?: string;
+            stateNonce?: string;
+            statePurpose?: 'oauth' | 'install';
+            installations?: GitHubInstallation[];
+        };
+        zenhub?: {
+            connectionId?: string;
+            accountName?: string;
+            mocked?: boolean;
+        };
+    };
+    answers?: OnboardingAnswers;
+    checkpoints: string[];
+    result?: Record<string, unknown>;
+    failure?: { step: string; message: string; retryable: boolean; occurredAt: Date };
+    leaseOwner?: string;
+    leaseUntil?: Date;
+    expiresAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+const onboardingSchema = new Schema<IOnboarding>(
+    {
+        userId: { type: String, required: true, index: true },
+        username: { type: String, required: true },
+        requiredIntegrations: { type: [String], enum: ['github', 'zenhub'], default: [] },
+        agreementTemplate: { type: Schema.Types.Mixed, required: true },
+        onboardingDefinition: { type: Schema.Types.Mixed, required: true },
+        joinLinkId: { type: Schema.Types.ObjectId, ref: 'JoinLink', index: true },
+        joinLinkConfiguration: { type: Schema.Types.Mixed },
+        status: { type: String, required: true, index: true },
+        integrations: { type: Schema.Types.Mixed, default: {} },
+        answers: { type: Schema.Types.Mixed, default: {} },
+        checkpoints: { type: [String], default: [] },
+        result: { type: Schema.Types.Mixed },
+        failure: { type: Schema.Types.Mixed },
+        leaseOwner: { type: String },
+        leaseUntil: { type: Date },
+        expiresAt: { type: Date },
+    },
+    {
+        timestamps: true,
+        minimize: false,
+        toJSON: {
+            transform: (_document, serialized) => {
+                if (serialized.result && typeof serialized.result === 'object')
+                    serialized.result = buildClientOnboardingResult({
+                        result: serialized.result as Record<string, unknown>,
+                        configuration: serialized.joinLinkConfiguration,
+                        answers: serialized.answers,
+                        governifyFrontendURL: bootEnv.GOVERNIFY_FRONTEND_URL,
+                    });
+                return serialized;
+            },
+        },
+    },
+);
+
+onboardingSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export default mongoose.model<IOnboarding>('JoinOnboarding', onboardingSchema);

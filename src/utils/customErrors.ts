@@ -48,17 +48,6 @@ export class NotFoundError extends StdError {
     }
 }
 
-export class TooManyRequestsError extends StdError {
-    constructor(message: string = 'Too many requests', details?: unknown) {
-        super({
-            message,
-            httpStatus: 429,
-            appCode: 'TOO_MANY_REQUESTS',
-            details,
-        });
-    }
-}
-
 export class UnauthorizedError extends StdError {
     constructor(message: string = 'Unauthorized', details?: unknown) {
         super({
@@ -78,5 +67,11 @@ export class ForbiddenError extends StdError {
             appCode: 'FORBIDDEN',
             details,
         });
+    }
+}
+
+export class ExternalServiceError extends StdError {
+    constructor(message: string = 'External service error', details?: unknown) {
+        super({ message, httpStatus: 502, appCode: 'EXTERNAL_SERVICE_ERROR', details });
     }
 }
