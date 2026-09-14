@@ -22,9 +22,9 @@ The currently supported catalog contains one definition for Registry's public `C
 - Create or update the Reporter dashboard for the published Agreement Version.
 - Filter the final dashboard link, organization link and Scope/Agreement data according to the result options stored in the join link.
 - Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
-- Mint one initial GitHub installation token while creating the Agreement version.
+- Publish the selected GitHub `installationId` in each Agreement fetcher configuration.
 
-The initial installation token, its expiration and the durable `installationId` are written only to the Registry Agreement version so the first fetch can run immediately. Join does not place the token in its onboarding result, Scope Manager or frontend response, and exposes no token-refresh endpoint. Fetcher owns all subsequent token renewal using the `installationId`. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
+GitHub fetcher configurations contain a top-level numeric `installationId` alongside the selected repository or project fields. Fetcher generates the first installation token and renews it using that ID and its GitHub App credentials. Join obtains installation tokens only for its own GitHub resource discovery and validation. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
 
 ## Local development
 
@@ -46,4 +46,4 @@ The GitHub App must request read access to repository metadata, issues, pull req
 - `npm run lint` — run ESLint
 - `npm run format:check` — verify formatting
 
-Fetcher must have the GitHub App credentials needed to replace the initial token after `tokenExpiresAt`. The retained ZenHub adapter still uses demo resources and credentials and is not part of the current Berkeley definition.
+Fetcher must have `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` configured to generate and renew installation tokens. The retained ZenHub adapter still uses demo resources and credentials and is not part of the current Berkeley definition.

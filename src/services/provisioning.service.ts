@@ -8,11 +8,7 @@ import { ForbiddenError, ValidationError } from '../utils/customErrors.js';
 import { getLogger } from '../utils/logger.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import * as ecosystem from './ecosystemPublisher.service.js';
-import {
-    materialize,
-    materializeScope,
-    withInitialGitHubCredential,
-} from './materialization.service.js';
+import { materialize, materializeScope } from './materialization.service.js';
 import { readPath } from './requirement.service.js';
 import { organizationsForUser } from './scopeManager.service.js';
 
@@ -175,16 +171,6 @@ const provision = async (onboarding: IOnboarding) => {
             collectionId,
             agreementTemplateName,
             payload,
-            async () => {
-                const installationId = onboarding.integrations?.github?.installationId;
-                if (!installationId) return payload;
-                const initialCredential = await github.createInstallationToken(installationId);
-                return withInitialGitHubCredential(payload, {
-                    installationId,
-                    token: initialCredential.token,
-                    expiresAt: initialCredential.expires_at,
-                });
-            },
         );
         agreementVersionNumber = Number(agreementVersion.versionNumber);
         await checkpoint(onboarding, 'agreementVersion', { agreementVersion });
