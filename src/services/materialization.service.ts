@@ -43,7 +43,7 @@ const resolveBinding = (
             const installationId = onboarding.integrations?.github?.installationId;
             if (!installationId)
                 throw new ValidationError('GitHub credential reference is missing');
-            return { provider: 'github', installationId };
+            return installationId;
         }
         const connectionId = onboarding.integrations?.zenhub?.connectionId;
         if (!connectionId) throw new ValidationError('ZenHub credential reference is missing');
@@ -273,12 +273,7 @@ export const withInitialGitHubCredential = (
     for (const signature of versionPayload.agreement.signatures) {
         for (const metric of signature.metrics) {
             for (const fetcher of metric.fetcherConfigs) {
-                const reference = fetcher.fetcherConfig.credentialRef;
-                if (
-                    !isRecord(reference) ||
-                    reference.provider !== 'github' ||
-                    Number(reference.installationId) !== credential.installationId
-                )
+                if (Number(fetcher.fetcherConfig.installationId) !== credential.installationId)
                     continue;
                 fetcher.fetcherConfig.token = credential.token;
                 fetcher.fetcherConfig.tokenExpiresAt = credential.expiresAt;
