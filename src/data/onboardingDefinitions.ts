@@ -79,7 +79,7 @@ const tpaUclm: DefinitionFactory = (agreementTemplate, guaranteeTemplates) => {
     const projectFields: Record<string, ValueBinding> = {
         projectIds: { answer: 'github_project', path: 'id', transform: 'toArray' },
         statusFieldId: { answer: 'github_status_field', path: 'id' },
-        credentialRef: { integration: 'github' },
+        installationId: { integration: 'github' },
     };
     const fetchers: Record<string, Record<string, ValueBinding>> = {
         [projectFetcher]: projectFields,
@@ -87,7 +87,7 @@ const tpaUclm: DefinitionFactory = (agreementTemplate, guaranteeTemplates) => {
         [pullRequestFetcher]: {
             owner: { answer: 'github_repository', path: 'owner' },
             repository: { answer: 'github_repository', path: 'name' },
-            credentialRef: { integration: 'github' },
+            installationId: { integration: 'github' },
         },
     };
 
