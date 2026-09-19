@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/governify-next/join-backend/compare/v1.1.0...v1.2.0) (2026-09-19)
+
+
+### Features
+
+* enhance logger with color output and refactor log level handling ([8391d91](https://github.com/governify-next/join-backend/commit/8391d9131d444d792d7e7bc32ed3b0b3a3ad57f9))
+* pass GitHub installation IDs to fetcher ([8cb28ca](https://github.com/governify-next/join-backend/commit/8cb28ca43982932804d993f8b66aafb8d3bed9d6))
+
+
+### Bug Fixes
+
+* new version ([c7e4291](https://github.com/governify-next/join-backend/commit/c7e429165d96b3ab852fec2f82de9bb1ef2c7b5b))
+* update package log with lost config ([7a11719](https://github.com/governify-next/join-backend/commit/7a11719323b31b02d81a7547623522b3199bf0c9))
+
 ## 1.1.0 (2026-09-14)
 
 ### Features
