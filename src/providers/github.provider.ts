@@ -104,7 +104,7 @@ export const verifyState = (state: string) => {
     return value;
 };
 
-export const createInstallationToken = async (installationId: number) =>
+const createInstallationToken = async (installationId: number) =>
     requestGitHub<{ token: string; expires_at: string }>(
         `${bootEnv.GITHUB_API_URL}/app/installations/${installationId}/access_tokens`,
         { method: 'POST', headers: apiHeaders(appJwt()), body: '{}' },

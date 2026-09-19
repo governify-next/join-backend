@@ -41,8 +41,12 @@ const resolveBinding = (
     if ('integration' in binding) {
         if (binding.integration === 'github') {
             const installationId = onboarding.integrations?.github?.installationId;
-            if (!installationId)
-                throw new ValidationError('GitHub credential reference is missing');
+            if (
+                typeof installationId !== 'number' ||
+                !Number.isSafeInteger(installationId) ||
+                installationId <= 0
+            )
+                throw new ValidationError('GitHub installation ID must be a positive safe integer');
             return installationId;
         }
         const connectionId = onboarding.integrations?.zenhub?.connectionId;
@@ -262,26 +266,4 @@ export const materializeScope = (onboarding: IOnboarding) => {
     };
 
     return scope;
-};
-
-export const withInitialGitHubCredential = (
-    payload: MaterializedOnboarding,
-    credential: { installationId: number; token: string; expiresAt: string },
-) => {
-    const versionPayload = structuredClone(payload);
-    let injected = 0;
-    for (const signature of versionPayload.agreement.signatures) {
-        for (const metric of signature.metrics) {
-            for (const fetcher of metric.fetcherConfigs) {
-                if (Number(fetcher.fetcherConfig.installationId) !== credential.installationId)
-                    continue;
-                fetcher.fetcherConfig.token = credential.token;
-                fetcher.fetcherConfig.tokenExpiresAt = credential.expiresAt;
-                injected += 1;
-            }
-        }
-    }
-    if (!injected)
-        throw new ValidationError('The Agreement contains no GitHub fetcher configuration');
-    return versionPayload;
 };

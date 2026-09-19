@@ -280,7 +280,6 @@ export const ensureAgreementVersion = async (
     collectionId: string,
     agreementTemplateName: string,
     payload: MaterializedOnboarding,
-    prepareForCreate: () => Promise<MaterializedOnboarding>,
 ) => {
     const versionsUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions`;
     const versions = await requestJson<
@@ -303,8 +302,7 @@ export const ensureAgreementVersion = async (
             );
         return { versionNumber: existing.versionNumber, reused: true };
     }
-    const createPayload = await prepareForCreate();
-    const signatures = createPayload.agreement.signatures.map((signature) => ({
+    const signatures = payload.agreement.signatures.map((signature) => ({
         guaranteeName: signature.guaranteeTemplateName,
         visualizationConfig: signature.visualizationConfig,
         metrics: signature.metrics,
@@ -314,7 +312,7 @@ export const ensureAgreementVersion = async (
         headers: serviceHeaders(),
         body: JSON.stringify({
             contract: {
-                ...createPayload.agreement.contract,
+                ...payload.agreement.contract,
                 agreementTemplateName,
             },
             signatures,
