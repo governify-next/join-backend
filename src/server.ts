@@ -4,15 +4,14 @@ import { getLogger } from './utils/logger.js';
 import { bootEnv, validateBootConfig } from './config/bootConfig.js';
 import { startWorker, stopWorker } from './services/provisioning.service.js';
 import { fetchServiceToken } from './utils/serviceAuthentication.js';
+import { connectMongo } from './db/mongo.js';
 
 const logger = getLogger().setTag('server.ts');
 const PORT = bootEnv.PORT;
-const MONGO_URI = bootEnv.MONGO_URI;
 
 validateBootConfig();
 
-mongoose
-    .connect(MONGO_URI)
+connectMongo()
     .then(async () => {
         await fetchServiceToken();
         app.listen(PORT, () => {

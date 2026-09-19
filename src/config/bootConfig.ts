@@ -3,7 +3,7 @@ import path from 'path';
 
 // Load .env file
 const envPath = process.env.GOV_BOOT_ENV_PATH || path.resolve(process.cwd(), '.env');
-dotenv.config({ path: envPath });
+dotenv.config({ path: envPath, quiet: true });
 
 export const bootEnv = {
     NODE_ENV: process.env.NODE_ENV || 'development',
