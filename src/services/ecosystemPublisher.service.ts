@@ -364,6 +364,31 @@ export const ensureCalculationSchedule = async (
     });
 };
 
+export const ensureStateSyncSchedule = async (
+    organizationName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementVersionNumber: number,
+) => {
+    const versionPath = `/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions`;
+    const versions = await requestJson<{ versionNumber: number }[]>(
+        `${bootEnv.REGISTRY_SERVICE_URL}${versionPath}`,
+        { headers: serviceHeaders() },
+    );
+    const versionIndex = versions.findIndex(
+        (version) => version.versionNumber === agreementVersionNumber,
+    );
+    if (versionIndex === -1)
+        throw new ValidationError('Published agreement version was not found in Registry');
+
+    const taskPath = `/api/v1/influx/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${versionIndex + 1}/tasks/states/sync?enabled=true`;
+    return requestJson<Record<string, unknown>>(`${bootEnv.REPORTER_SERVICE_URL}${taskPath}`, {
+        method: 'POST',
+        headers: serviceHeaders(),
+        body: JSON.stringify({ interval: 20 * 60_000, lookbackMs: 60 * 60_000 }),
+    });
+};
+
 export const ensureDashboard = async (
     organizationName: string,
     scopeId: string,

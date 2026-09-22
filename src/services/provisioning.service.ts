@@ -22,6 +22,7 @@ const PROVISIONING_CHECKPOINTS = [
     'agreementVersion',
     'initialCalculation',
     'schedule',
+    'syncSchedule',
     'dashboard',
 ] as const;
 export const TOTAL_PROVISIONING_CHECKPOINTS = PROVISIONING_CHECKPOINTS.length;
@@ -206,6 +207,15 @@ const provision = async (onboarding: IOnboarding) => {
             agreementVersionNumber,
         );
         await checkpoint(onboarding, 'schedule', { tasks });
+    }
+    if (!onboarding.checkpoints.includes('syncSchedule')) {
+        const syncTask = await ecosystem.ensureStateSyncSchedule(
+            organizationName,
+            scopeId,
+            collectionId,
+            agreementVersionNumber,
+        );
+        await checkpoint(onboarding, 'syncSchedule', { syncTask });
     }
     if (!onboarding.checkpoints.includes('dashboard')) {
         const dashboard = await ecosystem.ensureDashboard(
