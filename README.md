@@ -14,7 +14,7 @@ The currently supported catalog contains one definition for Registry's public `C
 - Authorize GitHub once, discover existing GitHub App installations, install automatically when none is available, and enumerate repositories across every accessible installation.
 - Resolve the installation from the selected repository, then enumerate Projects V2 boards, status fields and collaborators.
 - Retain the mocked ZenHub adapter for future onboarding definitions without exposing it in the current Berkeley flow.
-- Persist resumable onboarding sessions, provisioning checkpoints and completed results; the same source may be onboarded more than once.
+- Persist resumable onboarding sessions, provisioning checkpoints and completed results; repeated repository publication is configurable.
 - List the authenticated user's onboardings with enabled result links, and delete unfinished sessions. Deletion stops active publishing at its next save and retains any ecosystem resources already created.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
@@ -28,6 +28,10 @@ The currently supported catalog contains one definition for Registry's public `C
 GitHub fetcher configurations contain a top-level numeric `installationId` alongside the selected repository or project fields. Fetcher generates the first installation token and renews it using that ID and its GitHub App credentials. Join obtains installation tokens only for its own GitHub resource discovery and validation. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
 
 ## Local development
+
+`RESTRICT_ONBOARDING_PER_REPOSITORY` defaults to `false` (development); production sets it to `true`. At startup, the flag creates or removes a partial unique index on `answers.github_repository.id` for `PROVISIONING`, `FAILED` and `COMPLETED` onboardings. Drafts remain unrestricted; competing publish requests receive HTTP 409. Repository answers are canonicalized from GitHub during configuration.
+
+Publishing sessions do not expire. Failed sessions can be retried or deleted; deletion removes the record and allows another onboarding for that repository. Completed sessions cannot be deleted. Stop existing workers before changing the flag, and use the same value across replicas sharing a database. Existing duplicate publications must be resolved before enabling the index; otherwise startup fails.
 
 Requires Node.js 24 and MongoDB. Copy `.env.example` to `.env`, configure the service URLs and GitHub App, then run:
 

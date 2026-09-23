@@ -5,6 +5,7 @@ import { bootEnv, validateBootConfig } from './config/bootConfig.js';
 import { startWorker, stopWorker } from './services/provisioning.service.js';
 import { fetchServiceToken } from './utils/serviceAuthentication.js';
 import { connectMongo } from './db/mongo.js';
+import { initializePublicationIndex } from './repositories/onboarding.repository.js';
 
 const logger = getLogger().setTag('server.ts');
 const PORT = bootEnv.PORT;
@@ -13,6 +14,7 @@ validateBootConfig();
 
 connectMongo()
     .then(async () => {
+        await initializePublicationIndex();
         await fetchServiceToken();
         app.listen(PORT, () => {
             logger.log(`Server running on http://localhost:${PORT}`);

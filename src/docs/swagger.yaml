@@ -261,10 +261,20 @@ paths:
             description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template, Scope, Agreement collection and version; and supplies the GitHub installation ID in each fetcher configuration. Join then starts state generation, schedules hourly calculations, schedules Reporter State synchronization every 20 minutes with a one-hour lookback, and creates or updates the Reporter dashboard; Fetcher generates and renews installation tokens.
             security: [{ BearerAuth: [] }]
             parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
-            responses: { '202': { description: Provisioning queued } }
+            responses:
+                '202': { description: Provisioning queued }
+                '409':
+                    {
+                        description: Repository publication already exists and repository restrictions are enabled,
+                    }
     /onboardings/{id}/retry:
         post:
             summary: Retry provisioning from its last checkpoint
             security: [{ BearerAuth: [] }]
             parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
-            responses: { '202': { description: Retry queued } }
+            responses:
+                '202': { description: Retry queued }
+                '409':
+                    {
+                        description: Repository publication belongs to another onboarding and repository restrictions are enabled,
+                    }
