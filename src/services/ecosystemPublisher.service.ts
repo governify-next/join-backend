@@ -321,31 +321,6 @@ export const ensureAgreementVersion = async (
     return { versionNumber: created.versionNumber, reused: false };
 };
 
-export const calculationDate = (payload: MaterializedOnboarding) => {
-    const initial = new Date(String(readPath(payload.agreement.contract, 'validity.initial')));
-    const end = new Date(String(readPath(payload.agreement.contract, 'validity.end')));
-    const calculation = new Date(Math.max(Date.now(), initial.getTime()));
-    if (calculation >= end)
-        throw new ValidationError('Agreement validity ended before calculations could start');
-    return calculation.toISOString();
-};
-
-export const generateInitialState = async (
-    organizationName: string,
-    scopeId: string,
-    collectionId: string,
-    agreementVersion: number,
-    date: string,
-) =>
-    requestJson(
-        `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}/states/generate?isAsync=true`,
-        {
-            method: 'POST',
-            headers: serviceHeaders(),
-            body: JSON.stringify({ date, temporalMode: 'CAPTURE', ifExists: 'KEEP' }),
-        },
-    );
-
 export const ensureCalculationSchedule = async (
     organizationName: string,
     scopeId: string,

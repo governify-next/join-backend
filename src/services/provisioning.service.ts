@@ -20,7 +20,6 @@ const PROVISIONING_CHECKPOINTS = [
     'scope',
     'agreementCollection',
     'agreementVersion',
-    'initialCalculation',
     'schedule',
     'syncSchedule',
     'dashboard',
@@ -179,26 +178,6 @@ const provision = async (onboarding: IOnboarding) => {
     if (!Number.isSafeInteger(agreementVersionNumber))
         throw new Error('Registry did not return an agreement version number');
 
-    if (!onboarding.checkpoints.includes('initialCalculation')) {
-        const calculationDate =
-            (onboarding.result?.initialCalculationDate as string | undefined) ||
-            ecosystem.calculationDate(payload);
-        if (!onboarding.result?.initialCalculationDate) {
-            onboarding.result = {
-                ...(onboarding.result || {}),
-                initialCalculationDate: calculationDate,
-            };
-            await onboarding.save();
-        }
-        await ecosystem.generateInitialState(
-            organizationName,
-            scopeId,
-            collectionId,
-            agreementVersionNumber,
-            calculationDate,
-        );
-        await checkpoint(onboarding, 'initialCalculation');
-    }
     if (!onboarding.checkpoints.includes('schedule')) {
         const tasks = await ecosystem.ensureCalculationSchedule(
             organizationName,
