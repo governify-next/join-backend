@@ -35,6 +35,7 @@
     },
     "homepage": "https://github.com/governify-next/join-backend#readme",
     "dependencies": {
+        "@oas-tools/oas-telemetry": "^0.8.0",
         "dotenv": "^17.2.3",
         "express": "^5.2.1",
         "express-validator": "^7.3.1",

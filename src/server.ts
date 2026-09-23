@@ -1,3 +1,4 @@
+import { oasTelemetry } from '@oas-tools/oas-telemetry';
 import mongoose from 'mongoose';
 import app from './app.js';
 import { getLogger } from './utils/logger.js';
@@ -6,6 +7,8 @@ import { startWorker, stopWorker } from './services/provisioning.service.js';
 import { fetchServiceToken } from './utils/serviceAuthentication.js';
 import { connectMongo } from './db/mongo.js';
 import { initializePublicationIndex } from './repositories/onboarding.repository.js';
+
+app.use(oasTelemetry());
 
 const logger = getLogger().setTag('server.ts');
 const PORT = bootEnv.PORT;
