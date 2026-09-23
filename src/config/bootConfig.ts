@@ -31,12 +31,20 @@ export const bootEnv = {
         'http://localhost:5907/api/v1/integrations/github/callback',
     GITHUB_API_URL: process.env.GITHUB_API_URL || 'https://api.github.com',
     ONBOARDING_TTL_SECONDS: Number(process.env.ONBOARDING_TTL_SECONDS || 24 * 60 * 60),
+    RESTRICT_ONBOARDING_PER_REPOSITORY:
+        (process.env.RESTRICT_ONBOARDING_PER_REPOSITORY || 'false').toLowerCase() === 'true',
     WORKER_INTERVAL_MS: Number(process.env.WORKER_INTERVAL_MS || 2_000),
     WORKER_LEASE_MS: Number(process.env.WORKER_LEASE_MS || 5 * 60_000),
 };
 
 export const validateBootConfig = () => {
     const errors: string[] = [];
+    if (
+        !['true', 'false'].includes(
+            (process.env.RESTRICT_ONBOARDING_PER_REPOSITORY || 'false').toLowerCase(),
+        )
+    )
+        errors.push('RESTRICT_ONBOARDING_PER_REPOSITORY must be true or false');
     const required = [
         'CLIENT_ID',
         'CLIENT_SECRET',
