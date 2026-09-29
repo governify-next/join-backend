@@ -25,8 +25,15 @@ The currently supported catalog contains one definition for Registry's public `C
 - Filter the final dashboard link, organization link and Scope/Agreement data according to the result options stored in the join link.
 - Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
 - Publish the selected GitHub `installationId` in each Agreement fetcher configuration.
+- When Bluejay legacy URLs are configured, reconstruct the old `info.yml` from the validated Join answers, validate it through the old Scope Manager, and publish the legacy project, TPA agreement and automatic calculation task with retry checkpoints.
 
 GitHub fetcher configurations contain a top-level numeric `installationId` alongside the selected repository or project fields. Fetcher generates the first installation token and renews it using that ID and its GitHub App credentials. Join obtains installation tokens only for its own GitHub resource discovery and validation. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
+
+## Bluejay compatibility
+
+Set `LEGACY_SCOPE_URL` to enable publication to the old Bluejay system. Also provide `LEGACY_SCOPE_AUTH_TOKEN` (an authorization token accepted by the old Scope Manager), `LEGACY_REGISTRY_URL`, `LEGACY_DIRECTOR_URL`, `LEGACY_INTERNAL_ASSETS_URL`, `LEGACY_INTERNAL_SCOPE_URL`, and `LEGACY_RENDER_URL`. `LEGACY_COURSE_ID` defaults to `UCLM-ISII-2026-2027`; `LEGACY_TPA_TEMPLATE_ID` defaults to `template-UCLM-ISII-2026-2027-v1.0.0`. These values are read by Join Backend, so no legacy credentials need to be exposed to the browser.
+
+The old `generate` endpoint only accepts repository URLs and fetches `info.yml` from GitHub. Join instead serializes its local answers as an in-memory `info.yml`, posts it to the old `check` endpoint, and writes the equivalent project to the authenticated course API. The project ID matches the old generator's `courseId-GH-owner_repository-hash` convention. The old course must already exist. The Scope Manager's course update writes the whole projects list, so concurrent joins through separate systems should be serialized at deployment level to avoid lost updates.
 
 ## Local development
 

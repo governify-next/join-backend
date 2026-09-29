@@ -18,6 +18,16 @@ export const bootEnv = {
     REGISTRY_SERVICE_URL: process.env.REGISTRY_SERVICE_URL || 'http://localhost:5902',
     REPORTER_SERVICE_URL: process.env.REPORTER_SERVICE_URL || 'http://localhost:5905',
     DIRECTOR_SERVICE_URL: process.env.DIRECTOR_SERVICE_URL || 'http://localhost:5906',
+    LEGACY_SCOPE_URL: process.env.LEGACY_SCOPE_URL || '',
+    LEGACY_SCOPE_AUTH_TOKEN: process.env.LEGACY_SCOPE_AUTH_TOKEN || '',
+    LEGACY_REGISTRY_URL: process.env.LEGACY_REGISTRY_URL || '',
+    LEGACY_DIRECTOR_URL: process.env.LEGACY_DIRECTOR_URL || '',
+    LEGACY_INTERNAL_ASSETS_URL: process.env.LEGACY_INTERNAL_ASSETS_URL || '',
+    LEGACY_INTERNAL_SCOPE_URL: process.env.LEGACY_INTERNAL_SCOPE_URL || '',
+    LEGACY_RENDER_URL: process.env.LEGACY_RENDER_URL || '',
+    LEGACY_COURSE_ID: process.env.LEGACY_COURSE_ID || 'UCLM-ISII-2026-2027',
+    LEGACY_TPA_TEMPLATE_ID:
+        process.env.LEGACY_TPA_TEMPLATE_ID || 'template-UCLM-ISII-2026-2027-v1.0.0',
     CLIENT_ID: process.env.CLIENT_ID || 'join-backend',
     CLIENT_SECRET: process.env.CLIENT_SECRET || 'join_backend_client_secret',
     JWT_SECRET: process.env.JWT_SECRET || 'governify_next_secret_key',
@@ -39,6 +49,18 @@ export const bootEnv = {
 
 export const validateBootConfig = () => {
     const errors: string[] = [];
+    if (bootEnv.LEGACY_SCOPE_URL) {
+        for (const key of [
+            'LEGACY_SCOPE_AUTH_TOKEN',
+            'LEGACY_REGISTRY_URL',
+            'LEGACY_DIRECTOR_URL',
+            'LEGACY_INTERNAL_ASSETS_URL',
+            'LEGACY_INTERNAL_SCOPE_URL',
+            'LEGACY_RENDER_URL',
+        ] as const) {
+            if (!bootEnv[key]) errors.push(`${key} is required when LEGACY_SCOPE_URL is set`);
+        }
+    }
     if (
         !['true', 'false'].includes(
             (process.env.RESTRICT_ONBOARDING_PER_REPOSITORY || 'false').toLowerCase(),
