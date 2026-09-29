@@ -408,7 +408,7 @@ const tpaUclm: DefinitionFactory = (agreementTemplate, guaranteeTemplates) => {
 
 // Adding another Agreement Template means adding another self-contained factory here.
 export const ONBOARDING_DEFINITIONS: Record<string, DefinitionFactory> = {
-    'tpa-UCLM': tpaUclm,
+    'tpa-UCLM-ISII-2026-2027-v1-0-0': tpaUclm,
 };
 
 export const createOnboardingDefinition = (

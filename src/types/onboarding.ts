@@ -25,6 +25,7 @@ export interface AgreementTemplateGuarantee {
         period: { unit: string; value: number }[];
         anchorDate: string;
     };
+    evolutiveWindow: AgreementTemplateGuarantee['window'] | null;
 }
 
 export interface PublicAgreementTemplate {

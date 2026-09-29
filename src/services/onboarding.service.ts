@@ -8,7 +8,12 @@ import type {
     IntegrationProvider,
     OnboardingAnswers,
 } from '../types/onboarding.js';
-import { ForbiddenError, NotFoundError, ValidationError } from '../utils/customErrors.js';
+import {
+    DuplicateKeyError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+} from '../utils/customErrors.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import {
     organizationOptions,
@@ -343,6 +348,7 @@ export const queueProvisioning = async (id: string, user: AuthenticatedUser) => 
     if (!['READY', 'FAILED'].includes(onboarding.status))
         throw new ValidationError('Onboarding is not ready for provisioning');
     onboarding.status = 'PROVISIONING';
+    onboarding.expiresAt = undefined;
     onboarding.failure = undefined;
     onboarding.result = {
         ...(onboarding.result || {}),
@@ -350,6 +356,14 @@ export const queueProvisioning = async (id: string, user: AuthenticatedUser) => 
     };
     onboarding.leaseOwner = undefined;
     onboarding.leaseUntil = undefined;
-    await onboarding.save();
+    try {
+        await onboarding.save();
+    } catch (error) {
+        if (error instanceof mongoose.mongo.MongoServerError && error.code === 11000)
+            throw new DuplicateKeyError(
+                'This repository already has an onboarding being published or completed. If this is unexpected, contact the system administrator.',
+            );
+        throw error;
+    }
     return onboarding;
 };

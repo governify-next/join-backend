@@ -55,6 +55,7 @@ const agreementTemplateIdentity = (template: Record<string, unknown>) => ({
                   comparator: value.comparator,
                   threshold: value.threshold,
                   window: value.window,
+                  evolutiveWindow: value.evolutiveWindow,
               };
           })
         : template.guarantees,
@@ -123,6 +124,7 @@ export const ensureAgreementTemplate = async (
             comparator: guarantee.comparator,
             threshold: guarantee.threshold,
             window: guarantee.window,
+            evolutiveWindow: guarantee.evolutiveWindow,
         })),
     };
     const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/agreementTemplates`;
@@ -321,31 +323,6 @@ export const ensureAgreementVersion = async (
     return { versionNumber: created.versionNumber, reused: false };
 };
 
-export const calculationDate = (payload: MaterializedOnboarding) => {
-    const initial = new Date(String(readPath(payload.agreement.contract, 'validity.initial')));
-    const end = new Date(String(readPath(payload.agreement.contract, 'validity.end')));
-    const calculation = new Date(Math.max(Date.now(), initial.getTime()));
-    if (calculation >= end)
-        throw new ValidationError('Agreement validity ended before calculations could start');
-    return calculation.toISOString();
-};
-
-export const generateInitialState = async (
-    organizationName: string,
-    scopeId: string,
-    collectionId: string,
-    agreementVersion: number,
-    date: string,
-) =>
-    requestJson(
-        `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}/states/generate?isAsync=true`,
-        {
-            method: 'POST',
-            headers: serviceHeaders(),
-            body: JSON.stringify({ date, temporalMode: 'CAPTURE', ifExists: 'KEEP' }),
-        },
-    );
-
 export const ensureCalculationSchedule = async (
     organizationName: string,
     scopeId: string,
@@ -361,6 +338,46 @@ export const ensureCalculationSchedule = async (
         method: 'POST',
         headers: serviceHeaders(),
         body: JSON.stringify({}),
+    });
+};
+
+export const ensureEvolutiveCalculationSchedule = async (
+    organizationName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementVersion: number,
+) => {
+    const tasksUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}/tasks/states/evolutive?enabled=true`;
+    // Director deduplicates each signature task, so retries also complete partial creations.
+    return requestJson<Record<string, unknown>[]>(tasksUrl, {
+        method: 'POST',
+        headers: serviceHeaders(),
+        body: JSON.stringify({}),
+    });
+};
+
+export const ensureStateSyncSchedule = async (
+    organizationName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementVersionNumber: number,
+) => {
+    const versionPath = `/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions`;
+    const versions = await requestJson<{ versionNumber: number }[]>(
+        `${bootEnv.REGISTRY_SERVICE_URL}${versionPath}`,
+        { headers: serviceHeaders() },
+    );
+    const versionIndex = versions.findIndex(
+        (version) => version.versionNumber === agreementVersionNumber,
+    );
+    if (versionIndex === -1)
+        throw new ValidationError('Published agreement version was not found in Registry');
+
+    const taskPath = `/api/v1/influx/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${versionIndex + 1}/tasks/states/sync?enabled=true`;
+    return requestJson<Record<string, unknown>>(`${bootEnv.REPORTER_SERVICE_URL}${taskPath}`, {
+        method: 'POST',
+        headers: serviceHeaders(),
+        body: JSON.stringify({ interval: 20 * 60_000, lookbackMs: 60 * 60_000 }),
     });
 };
 

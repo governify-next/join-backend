@@ -2,6 +2,32 @@ import { randomUUID } from 'node:crypto';
 import Onboarding, { IOnboarding } from '../models/onboarding.model.js';
 import { bootEnv } from '../config/bootConfig.js';
 
+export const initializePublicationIndex = async () => {
+    await Onboarding.init();
+    const indexName = 'unique_published_repository';
+    if (bootEnv.RESTRICT_ONBOARDING_PER_REPOSITORY) {
+        await Onboarding.updateMany(
+            { status: { $in: ['PROVISIONING', 'FAILED', 'COMPLETED'] } },
+            { $unset: { expiresAt: 1 } },
+        );
+        await Onboarding.collection.createIndex(
+            { 'answers.github_repository.id': 1 },
+            {
+                name: indexName,
+                unique: true,
+                partialFilterExpression: {
+                    'answers.github_repository.id': { $exists: true },
+                    status: { $in: ['PROVISIONING', 'FAILED', 'COMPLETED'] },
+                },
+            },
+        );
+    } else {
+        await Onboarding.collection.dropIndex(indexName).catch((error) => {
+            if (error.code !== 27) throw error; // IndexNotFound
+        });
+    }
+};
+
 export const createOnboarding = (data: Partial<IOnboarding>) =>
     Onboarding.create({
         ...data,

@@ -8,6 +8,7 @@ import { ForbiddenError, ValidationError } from '../utils/customErrors.js';
 import { getLogger } from '../utils/logger.js';
 import * as agreementTemplates from './agreementTemplate.service.js';
 import * as ecosystem from './ecosystemPublisher.service.js';
+import * as legacy from './legacyPublisher.service.js';
 import { materialize, materializeScope } from './materialization.service.js';
 import { readPath } from './requirement.service.js';
 import { organizationsForUser } from './scopeManager.service.js';
@@ -20,9 +21,13 @@ const PROVISIONING_CHECKPOINTS = [
     'scope',
     'agreementCollection',
     'agreementVersion',
-    'initialCalculation',
     'schedule',
+    'evolutiveSchedule',
+    'syncSchedule',
     'dashboard',
+    ...(bootEnv.LEGACY_SCOPE_URL
+        ? (['legacyScope', 'legacyAgreement', 'legacyCalculation'] as const)
+        : []),
 ] as const;
 export const TOTAL_PROVISIONING_CHECKPOINTS = PROVISIONING_CHECKPOINTS.length;
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -178,26 +183,6 @@ const provision = async (onboarding: IOnboarding) => {
     if (!Number.isSafeInteger(agreementVersionNumber))
         throw new Error('Registry did not return an agreement version number');
 
-    if (!onboarding.checkpoints.includes('initialCalculation')) {
-        const calculationDate =
-            (onboarding.result?.initialCalculationDate as string | undefined) ||
-            ecosystem.calculationDate(payload);
-        if (!onboarding.result?.initialCalculationDate) {
-            onboarding.result = {
-                ...(onboarding.result || {}),
-                initialCalculationDate: calculationDate,
-            };
-            await onboarding.save();
-        }
-        await ecosystem.generateInitialState(
-            organizationName,
-            scopeId,
-            collectionId,
-            agreementVersionNumber,
-            calculationDate,
-        );
-        await checkpoint(onboarding, 'initialCalculation');
-    }
     if (!onboarding.checkpoints.includes('schedule')) {
         const tasks = await ecosystem.ensureCalculationSchedule(
             organizationName,
@@ -207,6 +192,24 @@ const provision = async (onboarding: IOnboarding) => {
         );
         await checkpoint(onboarding, 'schedule', { tasks });
     }
+    if (!onboarding.checkpoints.includes('evolutiveSchedule')) {
+        const evolutiveTasks = await ecosystem.ensureEvolutiveCalculationSchedule(
+            organizationName,
+            scopeId,
+            collectionId,
+            agreementVersionNumber,
+        );
+        await checkpoint(onboarding, 'evolutiveSchedule', { evolutiveTasks });
+    }
+    if (!onboarding.checkpoints.includes('syncSchedule')) {
+        const syncTask = await ecosystem.ensureStateSyncSchedule(
+            organizationName,
+            scopeId,
+            collectionId,
+            agreementVersionNumber,
+        );
+        await checkpoint(onboarding, 'syncSchedule', { syncTask });
+    }
     if (!onboarding.checkpoints.includes('dashboard')) {
         const dashboard = await ecosystem.ensureDashboard(
             organizationName,
@@ -215,6 +218,32 @@ const provision = async (onboarding: IOnboarding) => {
             agreementVersionNumber,
         );
         await checkpoint(onboarding, 'dashboard', { dashboard });
+    }
+
+    if (bootEnv.LEGACY_SCOPE_URL) {
+        let legacyScope = onboarding.result?.legacyScope as
+            | Awaited<ReturnType<typeof legacy.ensureLegacyScope>>
+            | undefined;
+        if (!onboarding.checkpoints.includes('legacyScope') || !legacyScope) {
+            legacyScope = await legacy.ensureLegacyScope(onboarding);
+            await checkpoint(onboarding, 'legacyScope', { legacyScope });
+        }
+        if (!onboarding.checkpoints.includes('legacyAgreement')) {
+            const notifications = legacy.buildLegacyInfo(onboarding).project.notifications;
+            const legacyAgreementId = await legacy.ensureLegacyAgreement(
+                legacyScope.projectId,
+                notifications,
+            );
+            await checkpoint(onboarding, 'legacyAgreement', { legacyAgreementId });
+        }
+        if (!onboarding.checkpoints.includes('legacyCalculation')) {
+            const legacyTaskId = await legacy.ensureLegacyCalculation(
+                legacyScope.projectId,
+                legacyScope.autoRun,
+                legacyScope.calculationConfig,
+            );
+            await checkpoint(onboarding, 'legacyCalculation', { legacyTaskId });
+        }
     }
 
     onboarding.status = 'COMPLETED';

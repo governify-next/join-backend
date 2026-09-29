@@ -14,19 +14,32 @@ The currently supported catalog contains one definition for Registry's public `C
 - Authorize GitHub once, discover existing GitHub App installations, install automatically when none is available, and enumerate repositories across every accessible installation.
 - Resolve the installation from the selected repository, then enumerate Projects V2 boards, status fields and collaborators.
 - Retain the mocked ZenHub adapter for future onboarding definitions without exposing it in the current Berkeley flow.
-- Persist resumable onboarding sessions, provisioning checkpoints and completed results; the same source may be onboarded more than once.
+- Persist resumable onboarding sessions, provisioning checkpoints and completed results; repeated repository publication is configurable.
 - List the authenticated user's onboardings with enabled result links, and delete unfinished sessions. Deletion stops active publishing at its next save and retains any ecosystem resources already created.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
-- Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; start an asynchronous state generation; and create an hourly Director task.
+- Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; and schedule consolidated and evolutive calculations through Registry in Director, using each guarantee's windows.
+- Preserve `evolutiveWindow` when copying and comparing Agreement Templates. The independent `evolutiveSchedule` checkpoint retries partial task creation through Director's deduplication; null windows return no tasks and still complete the step.
+- Schedule Reporter State synchronization every 20 minutes with a one-hour lookback for the published Agreement Version.
 - Create or update the Reporter dashboard for the published Agreement Version.
 - Filter the final dashboard link, organization link and Scope/Agreement data according to the result options stored in the join link.
 - Resume provisioning from durable, idempotent Mongo checkpoints and reject conflicting pre-existing resources.
 - Publish the selected GitHub `installationId` in each Agreement fetcher configuration.
+- When Bluejay legacy URLs are configured, reconstruct the old `info.yml` from the validated Join answers, validate it through the old Scope Manager, and publish the legacy project, TPA agreement and automatic calculation task with retry checkpoints.
 
 GitHub fetcher configurations contain a top-level numeric `installationId` alongside the selected repository or project fields. Fetcher generates the first installation token and renews it using that ID and its GitHub App credentials. Join obtains installation tokens only for its own GitHub resource discovery and validation. `GOVERNIFY_FRONTEND_URL` is the public Governify frontend base URL used to build the optional organization result link.
 
+## Bluejay compatibility
+
+Set `LEGACY_SCOPE_URL` to enable publication to the old Bluejay system. Also provide `LEGACY_SCOPE_AUTH_TOKEN` (an authorization token accepted by the old Scope Manager), `LEGACY_REGISTRY_URL`, `LEGACY_DIRECTOR_URL`, `LEGACY_INTERNAL_ASSETS_URL`, `LEGACY_INTERNAL_SCOPE_URL`, and `LEGACY_RENDER_URL`. `LEGACY_COURSE_ID` defaults to `UCLM-ISII-2026-2027`; `LEGACY_TPA_TEMPLATE_ID` defaults to `template-UCLM-ISII-2026-2027-v1.0.0`. These values are read by Join Backend, so no legacy credentials need to be exposed to the browser.
+
+The old `generate` endpoint only accepts repository URLs and fetches `info.yml` from GitHub. Join instead serializes its local answers as an in-memory `info.yml`, posts it to the old `check` endpoint, and writes the equivalent project to the authenticated course API. The project ID matches the old generator's `courseId-GH-owner_repository-hash` convention. The old course must already exist. The Scope Manager's course update writes the whole projects list, so concurrent joins through separate systems should be serialized at deployment level to avoid lost updates.
+
 ## Local development
+
+`RESTRICT_ONBOARDING_PER_REPOSITORY` defaults to `false` (development); production sets it to `true`. At startup, the flag creates or removes a partial unique index on `answers.github_repository.id` for `PROVISIONING`, `FAILED` and `COMPLETED` onboardings. Drafts remain unrestricted; competing publish requests receive HTTP 409. Repository answers are canonicalized from GitHub during configuration.
+
+Publishing sessions do not expire. Failed sessions can be retried or deleted; deletion removes the record and allows another onboarding for that repository. Completed sessions cannot be deleted. Stop existing workers before changing the flag, and use the same value across replicas sharing a database. Existing duplicate publications must be resolved before enabling the index; otherwise startup fails.
 
 Requires Node.js 24 and MongoDB. Copy `.env.example` to `.env`, configure the service URLs and GitHub App, then run:
 
