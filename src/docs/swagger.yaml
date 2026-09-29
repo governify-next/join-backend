@@ -258,7 +258,7 @@ paths:
     /onboardings/{id}/provision:
         post:
             summary: Queue asynchronous ecosystem provisioning
-            description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template, Scope, Agreement collection and version; and supplies the GitHub installation ID in each fetcher configuration. Join then starts state generation, schedules hourly calculations, schedules Reporter State synchronization every 20 minutes with a one-hour lookback, and creates or updates the Reporter dashboard; Fetcher generates and renews installation tokens.
+            description: Reuses Registry Guarantee Templates; creates or reuses the organization's Agreement Template (preserving evolutiveWindow), Scope, Agreement collection and version; and supplies the GitHub installation ID in each fetcher configuration. Join schedules consolidated and evolutive calculations according to each guarantee's windows, skips null evolutive windows, schedules Reporter State synchronization every 20 minutes with a one-hour lookback, and creates or updates the Reporter dashboard. Evolutive scheduling has its own retryable checkpoint; Fetcher generates and renews installation tokens.
             security: [{ BearerAuth: [] }]
             parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
             responses:

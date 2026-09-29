@@ -18,7 +18,8 @@ The currently supported catalog contains one definition for Registry's public `C
 - List the authenticated user's onboardings with enabled result links, and delete unfinished sessions. Deletion stops active publishing at its next save and retains any ecosystem resources already created.
 - Resolve resource options through a generic requirement endpoint and validate every submitted answer server-side.
 - Generate per-project and per-member signatures from explicit subjects in the integration definition.
-- Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; start an asynchronous state generation; and create an hourly Director task.
+- Send the completed repository Scope tree, including member and provider identities, to Scope Manager; create/reuse the Agreement collection and version in Registry; and schedule consolidated and evolutive calculations through Registry in Director, using each guarantee's windows.
+- Preserve `evolutiveWindow` when copying and comparing Agreement Templates. The independent `evolutiveSchedule` checkpoint retries partial task creation through Director's deduplication; null windows return no tasks and still complete the step.
 - Schedule Reporter State synchronization every 20 minutes with a one-hour lookback for the published Agreement Version.
 - Create or update the Reporter dashboard for the published Agreement Version.
 - Filter the final dashboard link, organization link and Scope/Agreement data according to the result options stored in the join link.

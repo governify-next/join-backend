@@ -55,6 +55,7 @@ const agreementTemplateIdentity = (template: Record<string, unknown>) => ({
                   comparator: value.comparator,
                   threshold: value.threshold,
                   window: value.window,
+                  evolutiveWindow: value.evolutiveWindow,
               };
           })
         : template.guarantees,
@@ -123,6 +124,7 @@ export const ensureAgreementTemplate = async (
             comparator: guarantee.comparator,
             threshold: guarantee.threshold,
             window: guarantee.window,
+            evolutiveWindow: guarantee.evolutiveWindow,
         })),
     };
     const collectionUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/agreementTemplates`;
@@ -332,6 +334,21 @@ export const ensureCalculationSchedule = async (
         headers: serviceHeaders(),
     });
     if (tasks.length) return tasks;
+    return requestJson<Record<string, unknown>[]>(tasksUrl, {
+        method: 'POST',
+        headers: serviceHeaders(),
+        body: JSON.stringify({}),
+    });
+};
+
+export const ensureEvolutiveCalculationSchedule = async (
+    organizationName: string,
+    scopeId: string,
+    collectionId: string,
+    agreementVersion: number,
+) => {
+    const tasksUrl = `${bootEnv.REGISTRY_SERVICE_URL}/api/v1/organizations/${encodeURIComponent(organizationName)}/scopes/${encodeURIComponent(scopeId)}/agreementCollections/${encodeURIComponent(collectionId)}/agreementVersions/${agreementVersion}/tasks/states/evolutive?enabled=true`;
+    // Director deduplicates each signature task, so retries also complete partial creations.
     return requestJson<Record<string, unknown>[]>(tasksUrl, {
         method: 'POST',
         headers: serviceHeaders(),
