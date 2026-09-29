@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.3.0](https://github.com/governify-next/join-backend/compare/v1.2.0...v1.3.0) (2026-09-29)
+
+
+### Features
+
+* add @oas-tools/oas-telemetry for enhanced telemetry support ([69ad132](https://github.com/governify-next/join-backend/commit/69ad132a2ef25ac3e5ef1b1d5ffa74e445f9a6ed))
+* add legacy support for Bluejay compatibility ([efbcb27](https://github.com/governify-next/join-backend/commit/efbcb273c9c0ad85bcac16ba671719bd3bd18736))
+* add state synchronization scheduling for Reporter every 20 minutes ([a62868f](https://github.com/governify-next/join-backend/commit/a62868fd3692eb8d474269300702c705e78e670d))
+* configure repository onboarding restriction flag ([1093689](https://github.com/governify-next/join-backend/commit/1093689fb318c3cb27af55598a5df3b996a8f6c3))
+* enforce optional repository onboarding uniqueness ([0f82406](https://github.com/governify-next/join-backend/commit/0f8240667108bcf9be9c3282b1e82c29fb737596))
+* implement evolutive scheduling for provisioning ([5b4fde7](https://github.com/governify-next/join-backend/commit/5b4fde7767ad28cb17baad610eb856f32e970c79))
+* new version ([f7c4b26](https://github.com/governify-next/join-backend/commit/f7c4b26e8cbdbb4d975b25d3694c186eeb7d64ce))
+
+
+### Bug Fixes
+
+* update onboarding definitions with tpa-UCLM-ISII-2026-2027-v1-0-0 ([0420655](https://github.com/governify-next/join-backend/commit/04206550211994008b98c9db1a9c25a51c0885fd))
+* update OTEL_SERVICE_NAME to match the project name ([f2ec3a3](https://github.com/governify-next/join-backend/commit/f2ec3a3db494a5564d81e0bbd3912e16193f8db2))
+
 ## [1.2.0](https://github.com/governify-next/join-backend/compare/v1.1.0...v1.2.0) (2026-09-19)
 
 
