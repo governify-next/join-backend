@@ -25,9 +25,8 @@ export const bootEnv = {
     LEGACY_INTERNAL_ASSETS_URL: process.env.LEGACY_INTERNAL_ASSETS_URL || '',
     LEGACY_INTERNAL_SCOPE_URL: process.env.LEGACY_INTERNAL_SCOPE_URL || '',
     LEGACY_RENDER_URL: process.env.LEGACY_RENDER_URL || '',
-    LEGACY_COURSE_ID: process.env.LEGACY_COURSE_ID || 'UCLM-ISII-2026-2027',
-    LEGACY_TPA_TEMPLATE_ID:
-        process.env.LEGACY_TPA_TEMPLATE_ID || 'template-UCLM-ISII-2026-2027-v1.0.0',
+    LEGACY_COURSE_ID: process.env.LEGACY_COURSE_ID || '',
+    LEGACY_TPA_TEMPLATE_ID: process.env.LEGACY_TPA_TEMPLATE_ID || '',
     CLIENT_ID: process.env.CLIENT_ID || 'join-backend',
     CLIENT_SECRET: process.env.CLIENT_SECRET || 'join_backend_client_secret',
     JWT_SECRET: process.env.JWT_SECRET || 'governify_next_secret_key',

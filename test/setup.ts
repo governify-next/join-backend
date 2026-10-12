@@ -1,7 +1,6 @@
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { afterEach } from 'node:test';
-import { afterAll, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll } from 'vitest';
 
 // Unit tests use mocked legacy services, regardless of the developer's local .env.
 process.env.LEGACY_SCOPE_URL = '';

@@ -1,5 +1,5 @@
 import YAML from 'yamljs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOnboarding } from '../src/models/onboarding.model.js';
 import { bootEnv } from '../src/config/bootConfig.js';
 import {
@@ -10,6 +10,12 @@ import {
 } from '../src/services/legacyPublisher.service.js';
 
 const original = { ...bootEnv };
+beforeEach(() => {
+    Object.assign(bootEnv, {
+        LEGACY_COURSE_ID: 'UCLM-ISII-2026-2027',
+        LEGACY_TPA_TEMPLATE_ID: 'template-UCLM-ISII-2026-2027-v1.0.0',
+    });
+});
 afterEach(() => {
     Object.assign(bootEnv, original);
     vi.unstubAllGlobals();
