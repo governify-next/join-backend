@@ -11,6 +11,9 @@ components:
             type: http
             scheme: bearer
             bearerFormat: JWT
+            description: |
+                JWT issued by Authenticator. Enter only the token, without the Bearer prefix.
+                Use a user or service token according to the operation's authentication requirements.
     schemas:
         StandardResponse:
             type: object
@@ -138,7 +141,7 @@ paths:
             description: Returns summaries ordered by last update, including project and organization names, status, timestamps and enabled result links for completed onboardings. Internal provisioning data is omitted.
             security: [{ BearerAuth: [] }]
             responses:
-                '200': { description: Owned onboarding summaries, newest update first }
+                '200': { description: 'Owned onboarding summaries, newest update first' }
                 '401': { description: Authentication required }
         post:
             summary: Create an onboarding session
