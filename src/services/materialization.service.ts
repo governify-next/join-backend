@@ -262,7 +262,6 @@ export const materializeScope = (onboarding: IOnboarding) => {
         name: scopeName,
         displayName: scopeName,
         fields: {},
-        permissions: {},
     };
 
     return scope;

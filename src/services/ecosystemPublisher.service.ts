@@ -66,7 +66,6 @@ const agreementCollectionIdentity = (collection: Record<string, unknown>) => ({
     displayName: collection.displayName,
     description: collection.description,
     fields: collection.fields,
-    permissions: collection.permissions,
 });
 
 const sameValidity = (left: Record<string, unknown> | undefined, right: Record<string, unknown>) =>
